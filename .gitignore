@@ -1,0 +1,7 @@
+.env
+venv/
+__pycache__/
+*.pyc
+.claude/
+security_audit.log
+.ipynb_checkpoints/

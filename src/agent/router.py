@@ -1,0 +1,232 @@
+import re
+from src.data.mock_data import CUSTOMERS
+from src.agent.prompts import UNKNOWN_INTENT_MSG, NO_CUSTOMER_MSG
+
+from src.tools.customer_tools import (
+    get_customer_balance, format_customer_balance,
+    get_customer_summary, format_customer_summary,
+    get_payment_history, format_payment_history,
+    get_top_debtors, format_top_debtors,
+)
+from src.tools.invoice_tools import (
+    get_unpaid_invoices, format_unpaid_invoices,
+    get_overdue_invoices, format_overdue_invoices,
+)
+from src.tools.sales_tools import (
+    get_top_selling_products, format_top_products,
+    get_sales_summary, format_sales_summary,
+)
+
+# OpenAI Function Calling layer. Imported defensively so the app still runs if
+# the openai SDK is absent: any import failure leaves _OPENAI_IMPORTED False and
+# route_query uses the rule-based fallback.
+try:
+    from src.services.openai_service import is_available, run_agent
+    _OPENAI_IMPORTED = True
+except Exception:
+    _OPENAI_IMPORTED = False
+
+_MONTH_MAP = {
+    "january": 1, "february": 2, "march": 3, "april": 4,
+    "may": 5, "june": 6, "july": 7, "august": 8,
+    "september": 9, "october": 10, "november": 11, "december": 12,
+}
+
+_THIS_MONTH = 6
+_THIS_YEAR = 2026
+
+
+def _extract_customer(query: str) -> str | None:
+    q_upper = query.upper()
+    for c in CUSTOMERS:
+        if c["name"].upper() in q_upper:
+            return c["name"]
+    return None
+
+
+def _extract_period(query: str) -> tuple[int | None, int | None]:
+    q_lower = query.lower()
+
+    if "this month" in q_lower:
+        return _THIS_MONTH, _THIS_YEAR
+    if "last month" in q_lower:
+        m = _THIS_MONTH - 1 if _THIS_MONTH > 1 else 12
+        y = _THIS_YEAR if _THIS_MONTH > 1 else _THIS_YEAR - 1
+        return m, y
+
+    month: int | None = None
+    year: int | None = None
+
+    for name, number in _MONTH_MAP.items():
+        if name in q_lower:
+            month = number
+            break
+
+    year_match = re.search(r"\b(202[0-9]|203[0-9])\b", query)
+    if year_match:
+        year = int(year_match.group())
+
+    return month, year
+
+
+def _detect_intent(query: str) -> str:
+    q = query.lower()
+
+    # Ordered by specificity — most specific patterns first
+    if any(kw in q for kw in ["overdue", "past due", "late invoice", "missed payment"]):
+        return "overdue_invoices"
+
+    if any(kw in q for kw in ["top debtor", "biggest debtor", "most money", "owes the most",
+                               "owe the most", "owes us the most", "who owes the most",
+                               "highest outstanding", "highest balance", "largest unpaid",
+                               "largest balance", "biggest balance", "biggest customer balance",
+                               "rank customer", "most outstanding"]):
+        return "top_debtors"
+
+    if any(kw in q for kw in ["top selling", "top-selling", "best selling", "bestselling",
+                               "top product", "best product", "most sold"]):
+        return "top_products"
+
+    if any(kw in q for kw in ["sales summary", "sales performance", "sales report",
+                               "revenue", "sales data", "summarize sales", "sales for"]):
+        return "sales_summary"
+
+    if any(kw in q for kw in ["payment history", "payment record", "payments made",
+                               "show payment", "payment for"]):
+        return "payment_history"
+
+    if any(kw in q for kw in ["customer summary", "account summary", "customer overview",
+                               "account overview", "summarize customer", "customer profile"]):
+        return "customer_summary"
+
+    if any(kw in q for kw in ["unpaid invoice", "outstanding invoice", "open invoice",
+                               "unpaid", "show invoice", "list invoice"]):
+        return "unpaid_invoices"
+
+    if any(kw in q for kw in ["balance", "owe", "owes", "how much", "debt",
+                               "outstanding balance", "amount due"]):
+        return "balance"
+
+    return "unknown"
+
+
+def route_query(query: str, history: list[dict] | None = None) -> dict:
+    """Public entry point (contract unchanged): returns {tool, parameters, result}.
+
+    Orchestrator only — it does not route. It tries the OpenAI Function Calling
+    path and degrades to deterministic rule-based routing on any failure.
+    """
+    # ── OpenAI path ─────────────────────────────────────────────────────────
+    # The model selects the tool and extracts arguments via function calling.
+    # Reached only when the SDK imported AND an API key is configured.
+    if _OPENAI_IMPORTED and is_available():
+        try:
+            return run_agent(query, history)
+        except Exception:
+            # ── Error propagation / fallback path ──────────────────────────
+            # run_agent raises cleanly on missing key, rate limits, network or
+            # timeout errors, malformed arguments, or an unknown tool. The
+            # router is the single place resilience lives: we swallow the error
+            # here and fall through to rule-based routing so the app keeps
+            # working without OpenAI.
+            return _rule_based_route(query)
+
+    # ── Fallback path ───────────────────────────────────────────────────────
+    # No OpenAI SDK/key available → deterministic keyword routing.
+    return _rule_based_route(query)
+
+
+def _rule_based_route(query: str) -> dict:
+    intent = _detect_intent(query)
+    customer = _extract_customer(query)
+    month, year = _extract_period(query)
+
+    # ── Top debtors (no customer filter needed) ─────────────────────────────
+    if intent == "top_debtors":
+        data = get_top_debtors()
+        return {
+            "tool": "get_top_debtors",
+            "parameters": {},
+            "result": format_top_debtors(data),
+        }
+
+    # ── Overdue invoices (no customer filter needed) ────────────────────────
+    if intent == "overdue_invoices":
+        data = get_overdue_invoices()
+        return {
+            "tool": "get_overdue_invoices",
+            "parameters": {},
+            "result": format_overdue_invoices(data),
+        }
+
+    # ── Top selling products ────────────────────────────────────────────────
+    if intent == "top_products":
+        # Default to this month if no period specified
+        m = month if month else _THIS_MONTH
+        y = year if year else _THIS_YEAR
+        data = get_top_selling_products(month=m, year=y)
+        return {
+            "tool": "get_top_selling_products",
+            "parameters": {"month": m, "year": y},
+            "result": format_top_products(data),
+        }
+
+    # ── Sales summary ───────────────────────────────────────────────────────
+    if intent == "sales_summary":
+        m = month if month else _THIS_MONTH
+        y = year if year else _THIS_YEAR
+        data = get_sales_summary(month=m, year=y)
+        return {
+            "tool": "get_sales_summary",
+            "parameters": {"month": m, "year": y},
+            "result": format_sales_summary(data),
+        }
+
+    # ── Payment history (requires customer) ────────────────────────────────
+    if intent == "payment_history":
+        if not customer:
+            return {"tool": "get_payment_history", "parameters": {}, "result": NO_CUSTOMER_MSG}
+        data = get_payment_history(customer)
+        return {
+            "tool": "get_payment_history",
+            "parameters": {"customer_name": customer},
+            "result": format_payment_history(data),
+        }
+
+    # ── Customer summary (requires customer) ───────────────────────────────
+    if intent == "customer_summary":
+        if not customer:
+            return {"tool": "get_customer_summary", "parameters": {}, "result": NO_CUSTOMER_MSG}
+        data = get_customer_summary(customer)
+        return {
+            "tool": "get_customer_summary",
+            "parameters": {"customer_name": customer},
+            "result": format_customer_summary(data),
+        }
+
+    # ── Unpaid invoices (optional customer filter) ──────────────────────────
+    if intent == "unpaid_invoices":
+        data = get_unpaid_invoices(customer_name=customer)
+        return {
+            "tool": "get_unpaid_invoices",
+            "parameters": {"customer_name": customer},
+            "result": format_unpaid_invoices(data),
+        }
+
+    # ── Customer balance (requires customer) ───────────────────────────────
+    if intent == "balance":
+        if not customer:
+            return {"tool": "get_customer_balance", "parameters": {}, "result": NO_CUSTOMER_MSG}
+        data = get_customer_balance(customer)
+        return {
+            "tool": "get_customer_balance",
+            "parameters": {"customer_name": customer},
+            "result": format_customer_balance(data),
+        }
+
+    # ── Fallback ────────────────────────────────────────────────────────────
+    return {
+        "tool": "unknown",
+        "parameters": {},
+        "result": UNKNOWN_INTENT_MSG,
+    }
