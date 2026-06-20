@@ -1,3 +1,4 @@
+import pandas as pd
 import streamlit as st
 from src.agent.router import route_query
 from src.tools.export_tools import export_customer_statement
@@ -51,6 +52,29 @@ def _render_statement_downloads(customer_name: str, key_prefix: str) -> None:
             )
     except Exception:
         cols[1].caption("Excel export unavailable (install openpyxl)")
+
+
+@st.cache_data(show_spinner="Loading dashboard…")
+def _dashboard_data() -> dict:
+    from src.tools.dashboard_tools import get_dashboard_summary
+    return get_dashboard_summary()
+
+
+@st.cache_data(show_spinner=False)
+def _dashboard_charts():
+    from src.tools.customer_tools import get_top_debtors
+    from src.tools.sales_tools import get_top_selling_products
+    debtors = get_top_debtors(limit=5)["debtors"]
+    products = get_top_selling_products(limit=5)["products"]
+    debtors_df = pd.DataFrame(
+        [(x["customer_name"], x["outstanding_balance"]) for x in debtors],
+        columns=["Customer", "Outstanding"],
+    ).set_index("Customer")
+    products_df = pd.DataFrame(
+        [(x["product_name"], x["total_revenue"]) for x in products],
+        columns=["Product", "Revenue"],
+    ).set_index("Product")
+    return debtors_df, products_df
 
 
 st.set_page_config(
@@ -107,6 +131,41 @@ if "messages" not in st.session_state:
 st.markdown("## Odoo AI Agent")
 st.markdown("Ask business questions in natural language. I will query your ERP data and return structured results.")
 st.divider()
+
+# ── Executive Dashboard ───────────────────────────────────────────────────────
+with st.expander("Executive Dashboard", expanded=False):
+    if st.button("Load / Refresh Dashboard", key="dash_refresh"):
+        _dashboard_data.clear()
+        _dashboard_charts.clear()
+        st.session_state["show_dashboard"] = True
+    if st.session_state.get("show_dashboard"):
+        d = _dashboard_data()
+        r1 = st.columns(4)
+        r1[0].metric("Total Revenue", f"QAR {d['total_revenue']:,.0f}")
+        r1[1].metric("Receivables", f"QAR {d['outstanding_receivables']:,.0f}")
+        r1[2].metric("Total Overdue", f"QAR {d['total_overdue']:,.0f}")
+        r1[3].metric("Avg Txn", f"QAR {d['avg_transaction']:,.0f}")
+        r2 = st.columns(4)
+        r2[0].metric("Open Invoices", d["open_invoice_count"])
+        r2[1].metric("Overdue Invoices", d["overdue_invoice_count"])
+        r2[2].metric("Customers", d["customer_count"])
+        r2[3].metric("Products", d["product_count"])
+        if d["top_debtor"]:
+            st.caption(
+                f"**Top Debtor:** {d['top_debtor']['customer_name']} — "
+                f"QAR {d['top_debtor']['outstanding_balance']:,.2f}"
+            )
+        if d["top_product"]:
+            st.caption(
+                f"**Top Product:** {d['top_product']['product_name']} — "
+                f"QAR {d['top_product']['total_revenue']:,.2f}"
+            )
+        debtors_df, products_df = _dashboard_charts()
+        ch = st.columns(2)
+        ch[0].caption("Top 5 Debtors (Outstanding)")
+        ch[0].bar_chart(debtors_df)
+        ch[1].caption("Top 5 Products (Revenue)")
+        ch[1].bar_chart(products_df)
 
 # ── Chat History ──────────────────────────────────────────────────────────────
 for idx, msg in enumerate(st.session_state.messages):

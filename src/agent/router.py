@@ -17,6 +17,12 @@ from src.tools.sales_tools import (
     get_top_selling_products, format_top_products,
     get_sales_summary, format_sales_summary,
 )
+from src.tools.dashboard_tools import (
+    get_dashboard_summary, format_dashboard_summary,
+)
+from src.tools.collections_tools import (
+    get_collection_priorities, format_collection_priorities,
+)
 
 # OpenAI Function Calling layer. Imported defensively so the app still runs if
 # the openai SDK is absent: any import failure leaves _OPENAI_IMPORTED False and
@@ -74,6 +80,12 @@ def _detect_intent(query: str) -> str:
     q = query.lower()
 
     # Ordered by specificity — most specific patterns first
+    if any(kw in q for kw in ["collection priorit", "collections", "payment follow",
+                               "follow up", "follow-up", "who should we call",
+                               "who should we follow", "overdue customer",
+                               "customers requiring", "requiring follow", "collection call"]):
+        return "collections"
+
     if any(kw in q for kw in ["overdue", "past due", "late invoice", "missed payment"]):
         return "overdue_invoices"
 
@@ -88,6 +100,11 @@ def _detect_intent(query: str) -> str:
                                "customer ledger", "ledger for", "ledger",
                                "show transactions", "transactions for", "statement"]):
         return "statement"
+
+    if any(kw in q for kw in ["executive dashboard", "dashboard", "executive summary",
+                               "management summary", "business overview", "kpis", "kpi",
+                               "key metrics"]):
+        return "dashboard"
 
     if any(kw in q for kw in ["top selling", "top-selling", "best selling", "bestselling",
                                "top product", "best product", "most sold"]):
@@ -147,6 +164,15 @@ def _rule_based_route(query: str) -> dict:
     customer = _extract_customer(query)
     month, year = _extract_period(query)
 
+    # ── Collection priorities (no customer filter needed) ───────────────────
+    if intent == "collections":
+        data = get_collection_priorities()
+        return {
+            "tool": "get_collection_priorities",
+            "parameters": {},
+            "result": format_collection_priorities(data),
+        }
+
     # ── Top debtors (no customer filter needed) ─────────────────────────────
     if intent == "top_debtors":
         data = get_top_debtors()
@@ -165,6 +191,15 @@ def _rule_based_route(query: str) -> dict:
             "tool": "get_customer_statement",
             "parameters": {"customer_name": customer},
             "result": format_customer_statement(data),
+        }
+
+    # ── Executive dashboard (no customer filter needed) ─────────────────────
+    if intent == "dashboard":
+        data = get_dashboard_summary()
+        return {
+            "tool": "get_dashboard_summary",
+            "parameters": {},
+            "result": format_dashboard_summary(data),
         }
 
     # ── Overdue invoices (no customer filter needed) ────────────────────────

@@ -9,6 +9,8 @@ You have access to the following tools:
 - get_payment_history       → Payment records for a customer
 - get_top_debtors           → Customers ranked by total outstanding balance
 - get_customer_statement    → Chronological statement of account (invoices, payments, running balance)
+- get_dashboard_summary     → Executive dashboard of key business metrics
+- get_collection_priorities → Customers ranked for payment follow-up (priority + action)
 - get_top_selling_products  → Top products ranked by revenue (with optional period filter)
 - get_sales_summary         → Sales performance summary for a given period
 

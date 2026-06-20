@@ -29,6 +29,12 @@ from src.tools.sales_tools import (
     get_top_selling_products, format_top_products,
     get_sales_summary, format_sales_summary,
 )
+from src.tools.dashboard_tools import (
+    get_dashboard_summary, format_dashboard_summary,
+)
+from src.tools.collections_tools import (
+    get_collection_priorities, format_collection_priorities,
+)
 
 
 TOOL_REGISTRY = {
@@ -51,6 +57,14 @@ TOOL_REGISTRY = {
     "get_customer_statement": {
         "function": get_customer_statement,
         "formatter": format_customer_statement,
+    },
+    "get_dashboard_summary": {
+        "function": get_dashboard_summary,
+        "formatter": format_dashboard_summary,
+    },
+    "get_collection_priorities": {
+        "function": get_collection_priorities,
+        "formatter": format_collection_priorities,
     },
     "get_unpaid_invoices": {
         "function": get_unpaid_invoices,

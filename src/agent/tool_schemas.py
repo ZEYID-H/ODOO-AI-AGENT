@@ -86,6 +86,50 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "get_collection_priorities",
+            "description": (
+                "Rank customers who need payment follow-up by a collection priority "
+                "score (overdue amount, days overdue, overdue invoice count). This is "
+                "the CUSTOMER-LEVEL collections view — prefer it for ANY question about "
+                "overdue CUSTOMERS or accounts to chase. Use for 'overdue customers', "
+                "'customers overdue', 'customers with overdue balances', 'overdue "
+                "customer follow-up', 'who should we follow up with', 'collection "
+                "priorities', 'payment follow up', 'customers requiring follow-up', "
+                "'who should we call'. (For a plain list of overdue invoices, use "
+                "get_overdue_invoices instead.) Returns outstanding balance, overdue "
+                "amount, invoice count, oldest due date, days overdue, priority level "
+                "(Critical/High/Medium/Low) and a recommended action."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "Optional: return only the top N priorities.",
+                    }
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_dashboard_summary",
+            "description": (
+                "Executive management dashboard: total revenue, outstanding "
+                "receivables, total overdue, open and overdue invoice counts, "
+                "average transaction value, top debtor, top product, and customer "
+                "and product counts. Use for 'dashboard', 'executive summary', "
+                "'executive dashboard', 'management summary', 'business overview', "
+                "'KPIs', 'key metrics'."
+            ),
+            "parameters": {"type": "object", "properties": {}, "required": []},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_customer_statement",
             "description": (
                 "Produce a customer's statement of account: a chronological ledger "
