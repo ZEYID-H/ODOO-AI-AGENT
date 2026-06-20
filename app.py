@@ -1,5 +1,6 @@
 import streamlit as st
 from src.agent.router import route_query
+from src.tools.export_tools import export_customer_statement
 
 
 def _build_history(messages: list[dict]) -> list[dict]:
@@ -23,6 +24,33 @@ def _build_history(messages: list[dict]) -> list[dict]:
                 # Tool result: keep only a lightweight note, never the table.
                 history.append({"role": "assistant", "content": f"(Provided {tool} results.)"})
     return history
+
+
+@st.cache_data(show_spinner=False)
+def _cached_export(customer_name: str, fmt: str) -> dict:
+    return export_customer_statement(customer_name, fmt)
+
+
+def _render_statement_downloads(customer_name: str, key_prefix: str) -> None:
+    """Download buttons for a customer statement (CSV mandatory, Excel if available)."""
+    if not customer_name:
+        return
+    cols = st.columns(2)
+    csv_res = _cached_export(customer_name, "csv")
+    if "error" not in csv_res:
+        cols[0].download_button(
+            "Download CSV", data=csv_res["content"], file_name=csv_res["filename"],
+            mime=csv_res["mimetype"], key=f"{key_prefix}_csv", use_container_width=True,
+        )
+    try:
+        xlsx_res = _cached_export(customer_name, "xlsx")
+        if "error" not in xlsx_res:
+            cols[1].download_button(
+                "Download Excel", data=xlsx_res["content"], file_name=xlsx_res["filename"],
+                mime=xlsx_res["mimetype"], key=f"{key_prefix}_xlsx", use_container_width=True,
+            )
+    except Exception:
+        cols[1].caption("Excel export unavailable (install openpyxl)")
 
 
 st.set_page_config(
@@ -81,11 +109,13 @@ st.markdown("Ask business questions in natural language. I will query your ERP d
 st.divider()
 
 # ── Chat History ──────────────────────────────────────────────────────────────
-for msg in st.session_state.messages:
+for idx, msg in enumerate(st.session_state.messages):
     with st.chat_message(msg["role"]):
         if msg["role"] == "assistant" and "tool" in msg:
             st.caption(f"Tool called: `{msg['tool']}`")
         st.markdown(msg["content"])
+        if msg.get("tool") == "get_customer_statement" and msg.get("customer_name"):
+            _render_statement_downloads(msg["customer_name"], f"hist_{idx}")
 
 # ── Chat Input ────────────────────────────────────────────────────────────────
 user_input = st.chat_input("Ask a business question...")
@@ -115,9 +145,14 @@ if user_input:
                 st.caption(f"Parameters: {param_str}")
 
         st.markdown(result)
+        if tool_name == "get_customer_statement":
+            _render_statement_downloads(
+                params.get("customer_name"), f"cur_{len(st.session_state.messages)}"
+            )
 
     st.session_state.messages.append({
         "role": "assistant",
         "content": result,
         "tool": tool_name,
+        "customer_name": params.get("customer_name") if tool_name == "get_customer_statement" else None,
     })

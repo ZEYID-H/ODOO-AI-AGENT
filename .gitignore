@@ -5,3 +5,6 @@ __pycache__/
 .claude/
 security_audit.log
 .ipynb_checkpoints/
+exports/
+*.xlsx
+*.csv
