@@ -86,6 +86,29 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "get_customer_statement",
+            "description": (
+                "Produce a customer's statement of account: a chronological ledger "
+                "of invoices (debits) and payments (credits) with a running balance, "
+                "plus totals and outstanding balance. Use for 'customer statement', "
+                "'account statement', 'statement of account', 'customer ledger', "
+                "'ledger for customer X', 'show transactions for customer X'."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "customer_name": {
+                        "type": "string",
+                        "description": "The customer/company name. Matched case-insensitively.",
+                    }
+                },
+                "required": ["customer_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_top_debtors",
             "description": (
                 "Rank customers by total outstanding balance (unpaid + overdue), "

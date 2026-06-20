@@ -131,6 +131,68 @@ def get_top_debtors(limit: int = 10) -> dict:
     }
 
 
+def get_customer_statement(customer_name: str) -> dict:
+    customer = _find_customer(customer_name)
+    if not customer:
+        return {"error": f"Customer '{customer_name}' not found."}
+    name = customer["name"]
+
+    invoices = [
+        i for i in provider.get_invoices()
+        if i["customer_name"].upper() == name.upper()
+    ]
+    payments = [
+        p for p in provider.get_payments()
+        if p["customer_name"].upper() == name.upper()
+    ]
+
+    rows = []
+    for inv in invoices:
+        rows.append({
+            "date": inv["issue_date"],
+            "type": "Invoice",
+            "reference": inv["id"],
+            "debit": inv["amount"],
+            "credit": 0.0,
+        })
+    for p in payments:
+        rows.append({
+            "date": p["date"],
+            "type": "Payment",
+            "reference": p["reference"] or p["id"],
+            "debit": 0.0,
+            "credit": p["amount"],
+        })
+
+    # Chronological; invoices before payments on the same day.
+    rows.sort(key=lambda r: (r["date"] or "", 0 if r["type"] == "Invoice" else 1))
+
+    running = 0.0
+    for r in rows:
+        running += r["debit"] - r["credit"]
+        r["balance"] = running
+
+    # Totals are computed from the FULL timeline, not from any display slice.
+    total_invoiced = sum(r["debit"] for r in rows)
+    total_paid = sum(r["credit"] for r in rows)
+    activity_balance = total_invoiced - total_paid
+
+    outstanding_balance = get_customer_balance(name).get("total_balance", 0.0)
+
+    return {
+        "customer_name": name,
+        "rows": rows,
+        "total_invoiced": total_invoiced,
+        "total_paid": total_paid,
+        "outstanding_balance": outstanding_balance,
+        "activity_balance": activity_balance,
+        "invoice_count": len(invoices),
+        "payment_count": len(payments),
+        "reconciles": abs(activity_balance - outstanding_balance) < 0.01,
+        "difference": round(outstanding_balance - activity_balance, 2),
+    }
+
+
 # ── Response Formatters ──────────────────────────────────────────────────────
 
 def format_customer_balance(data: dict) -> str:
@@ -228,5 +290,63 @@ def format_top_debtors(data: dict) -> str:
         )
     if not debtors:
         lines.append("\n_No outstanding balances found._")
+
+    return "\n".join(lines)
+
+
+def format_customer_statement(data: dict) -> str:
+    if "error" in data:
+        return f"**Error:** {data['error']}"
+
+    rows = data["rows"]
+    total_tx = len(rows)
+    max_rows = 50
+
+    lines = [
+        f"## Customer Statement: {data['customer_name']}",
+        "",
+        "| Metric | Value |",
+        "|--------|-------|",
+        f"| Total Invoiced | {fmt_currency(data['total_invoiced'])} |",
+        f"| Total Paid | {fmt_currency(data['total_paid'])} |",
+        f"| **Outstanding Balance** | **{fmt_currency(data['outstanding_balance'])}** |",
+        f"| Invoices | {data['invoice_count']} |",
+        f"| Payments | {data['payment_count']} |",
+        "",
+    ]
+
+    display_rows = rows[-max_rows:] if total_tx > max_rows else rows
+    if total_tx > max_rows:
+        lines.append(f"_Showing latest {max_rows} of {total_tx} transactions._")
+        lines.append("")
+
+    lines += [
+        "| Date | Type | Ref | Debit | Credit | Balance |",
+        "|------|------|-----|-------|--------|---------|",
+    ]
+    for r in display_rows:
+        debit = fmt_currency(r["debit"]) if r["debit"] else "-"
+        credit = fmt_currency(r["credit"]) if r["credit"] else "-"
+        date = fmt_date(r["date"]) if r["date"] else "N/A"
+        lines.append(
+            f"| {date} | {r['type']} | {r['reference']} | {debit} | {credit} "
+            f"| {fmt_currency(r['balance'])} |"
+        )
+
+    if not rows:
+        lines.append("\n_No transactions found for this customer._")
+
+    lines.append("")
+    if data["reconciles"]:
+        lines.append(
+            f"> Reconciled: activity balance matches open-item balance "
+            f"({fmt_currency(data['outstanding_balance'])})."
+        )
+    else:
+        lines.append(
+            f"> **Note:** Activity balance {fmt_currency(data['activity_balance'])} vs "
+            f"open-item balance {fmt_currency(data['outstanding_balance'])} — difference "
+            f"{fmt_currency(data['difference'])} (unreconciled / advance payments)."
+        )
 
     return "\n".join(lines)

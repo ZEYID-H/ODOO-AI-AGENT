@@ -7,6 +7,7 @@ from src.tools.customer_tools import (
     get_customer_summary, format_customer_summary,
     get_payment_history, format_payment_history,
     get_top_debtors, format_top_debtors,
+    get_customer_statement, format_customer_statement,
 )
 from src.tools.invoice_tools import (
     get_unpaid_invoices, format_unpaid_invoices,
@@ -83,6 +84,11 @@ def _detect_intent(query: str) -> str:
                                "rank customer", "most outstanding"]):
         return "top_debtors"
 
+    if any(kw in q for kw in ["customer statement", "account statement", "statement of account",
+                               "customer ledger", "ledger for", "ledger",
+                               "show transactions", "transactions for", "statement"]):
+        return "statement"
+
     if any(kw in q for kw in ["top selling", "top-selling", "best selling", "bestselling",
                                "top product", "best product", "most sold"]):
         return "top_products"
@@ -148,6 +154,17 @@ def _rule_based_route(query: str) -> dict:
             "tool": "get_top_debtors",
             "parameters": {},
             "result": format_top_debtors(data),
+        }
+
+    # ── Customer statement (requires customer) ──────────────────────────────
+    if intent == "statement":
+        if not customer:
+            return {"tool": "get_customer_statement", "parameters": {}, "result": NO_CUSTOMER_MSG}
+        data = get_customer_statement(customer)
+        return {
+            "tool": "get_customer_statement",
+            "parameters": {"customer_name": customer},
+            "result": format_customer_statement(data),
         }
 
     # ── Overdue invoices (no customer filter needed) ────────────────────────

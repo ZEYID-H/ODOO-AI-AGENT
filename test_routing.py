@@ -12,6 +12,7 @@ tests = [
     "Show all unpaid invoices",
     "who owes us the most money",
     "top debtors",
+    "customer statement for APPLE MART",
 ]
 
 print("=" * 60)

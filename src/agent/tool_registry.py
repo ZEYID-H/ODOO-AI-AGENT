@@ -19,6 +19,7 @@ from src.tools.customer_tools import (
     get_customer_summary, format_customer_summary,
     get_payment_history, format_payment_history,
     get_top_debtors, format_top_debtors,
+    get_customer_statement, format_customer_statement,
 )
 from src.tools.invoice_tools import (
     get_unpaid_invoices, format_unpaid_invoices,
@@ -46,6 +47,10 @@ TOOL_REGISTRY = {
     "get_top_debtors": {
         "function": get_top_debtors,
         "formatter": format_top_debtors,
+    },
+    "get_customer_statement": {
+        "function": get_customer_statement,
+        "formatter": format_customer_statement,
     },
     "get_unpaid_invoices": {
         "function": get_unpaid_invoices,
