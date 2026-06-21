@@ -175,7 +175,7 @@ def _rule_based_route(query: str) -> dict:
 
     # ── Top debtors (no customer filter needed) ─────────────────────────────
     if intent == "top_debtors":
-        data = get_top_debtors()
+        data = get_top_debtors(period=query)
         return {
             "tool": "get_top_debtors",
             "parameters": {},
@@ -186,7 +186,7 @@ def _rule_based_route(query: str) -> dict:
     if intent == "statement":
         if not customer:
             return {"tool": "get_customer_statement", "parameters": {}, "result": NO_CUSTOMER_MSG}
-        data = get_customer_statement(customer)
+        data = get_customer_statement(customer, period=query)
         return {
             "tool": "get_customer_statement",
             "parameters": {"customer_name": customer},
@@ -204,7 +204,7 @@ def _rule_based_route(query: str) -> dict:
 
     # ── Overdue invoices (no customer filter needed) ────────────────────────
     if intent == "overdue_invoices":
-        data = get_overdue_invoices()
+        data = get_overdue_invoices(period=query)
         return {
             "tool": "get_overdue_invoices",
             "parameters": {},
@@ -216,7 +216,7 @@ def _rule_based_route(query: str) -> dict:
         # Default to this month if no period specified
         m = month if month else _THIS_MONTH
         y = year if year else _THIS_YEAR
-        data = get_top_selling_products(month=m, year=y)
+        data = get_top_selling_products(period=query, month=m, year=y)
         return {
             "tool": "get_top_selling_products",
             "parameters": {"month": m, "year": y},
@@ -227,7 +227,7 @@ def _rule_based_route(query: str) -> dict:
     if intent == "sales_summary":
         m = month if month else _THIS_MONTH
         y = year if year else _THIS_YEAR
-        data = get_sales_summary(month=m, year=y)
+        data = get_sales_summary(period=query, month=m, year=y)
         return {
             "tool": "get_sales_summary",
             "parameters": {"month": m, "year": y},
@@ -258,7 +258,7 @@ def _rule_based_route(query: str) -> dict:
 
     # ── Unpaid invoices (optional customer filter) ──────────────────────────
     if intent == "unpaid_invoices":
-        data = get_unpaid_invoices(customer_name=customer)
+        data = get_unpaid_invoices(customer_name=customer, period=query)
         return {
             "tool": "get_unpaid_invoices",
             "parameters": {"customer_name": customer},

@@ -136,7 +136,8 @@ TOOL_SCHEMAS = [
                 "of invoices (debits) and payments (credits) with a running balance, "
                 "plus totals and outstanding balance. Use for 'customer statement', "
                 "'account statement', 'statement of account', 'customer ledger', "
-                "'ledger for customer X', 'show transactions for customer X'."
+                "'ledger for customer X', 'show transactions for customer X'. "
+                "Accepts an optional period to scope the statement to a date range."
             ),
             "parameters": {
                 "type": "object",
@@ -144,7 +145,15 @@ TOOL_SCHEMAS = [
                     "customer_name": {
                         "type": "string",
                         "description": "The customer/company name. Matched case-insensitively.",
-                    }
+                    },
+                    "period": {
+                        "type": "string",
+                        "description": (
+                            "Optional time filter: 'today', 'this week', 'this month', "
+                            "'last month', 'this quarter', 'last quarter', 'this year', "
+                            "'last year', or 'between 2026-01-01 and 2026-03-31'. Omit for all time."
+                        ),
+                    },
                 },
                 "required": ["customer_name"],
             },
@@ -168,7 +177,15 @@ TOOL_SCHEMAS = [
                     "limit": {
                         "type": "integer",
                         "description": "How many top customers to return. Defaults to 10.",
-                    }
+                    },
+                    "period": {
+                        "type": "string",
+                        "description": (
+                            "Optional time filter: 'today', 'this week', 'this month', "
+                            "'last month', 'this quarter', 'last quarter', 'this year', "
+                            "'last year', or 'between 2026-01-01 and 2026-03-31'. Omit for all time."
+                        ),
+                    },
                 },
                 "required": [],
             },
@@ -193,7 +210,15 @@ TOOL_SCHEMAS = [
                             "Optional customer/company name to filter by. Omit to "
                             "list unpaid invoices across all customers."
                         ),
-                    }
+                    },
+                    "period": {
+                        "type": "string",
+                        "description": (
+                            "Optional time filter: 'today', 'this week', 'this month', "
+                            "'last month', 'this quarter', 'last quarter', 'this year', "
+                            "'last year', or 'between 2026-01-01 and 2026-03-31'. Omit for all time."
+                        ),
+                    },
                 },
                 "required": [],
             },
@@ -210,7 +235,16 @@ TOOL_SCHEMAS = [
             ),
             "parameters": {
                 "type": "object",
-                "properties": {},
+                "properties": {
+                    "period": {
+                        "type": "string",
+                        "description": (
+                            "Optional time filter: 'today', 'this week', 'this month', "
+                            "'last month', 'this quarter', 'last quarter', 'this year', "
+                            "'last year', or 'between 2026-01-01 and 2026-03-31'. Omit for all time."
+                        ),
+                    }
+                },
                 "required": [],
             },
         },
@@ -222,11 +256,21 @@ TOOL_SCHEMAS = [
             "description": (
                 "Get the top products ranked by revenue for an optional period. Use "
                 "for 'top selling products', 'best sellers', 'most sold products'. "
-                "Provide month and/or year to scope the period; omit them for all time."
+                "Provide month and/or year, or a natural-language period, to scope it; "
+                "omit all for all time."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "period": {
+                        "type": "string",
+                        "description": (
+                            "Optional time filter: 'today', 'this week', 'this month', "
+                            "'last month', 'this quarter', 'last quarter', 'this year', "
+                            "'last year', or 'between 2026-01-01 and 2026-03-31'. Takes "
+                            "priority over month/year. Omit for all time."
+                        ),
+                    },
                     "month": {
                         "type": "integer",
                         "description": (
@@ -251,11 +295,21 @@ TOOL_SCHEMAS = [
                 "Get a sales performance summary for an optional period: total "
                 "revenue, transaction count, average transaction value, and top "
                 "customers and products by revenue. Use for 'sales summary', "
-                "'summarize sales for June 2026', 'sales performance', 'revenue report'."
+                "'summarize sales for June 2026', 'sales performance', 'revenue report', "
+                "'sales this month', 'sales last quarter'."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "period": {
+                        "type": "string",
+                        "description": (
+                            "Optional time filter: 'today', 'this week', 'this month', "
+                            "'last month', 'this quarter', 'last quarter', 'this year', "
+                            "'last year', or 'between 2026-01-01 and 2026-03-31'. Takes "
+                            "priority over month/year. Omit for all time."
+                        ),
+                    },
                     "month": {
                         "type": "integer",
                         "description": (

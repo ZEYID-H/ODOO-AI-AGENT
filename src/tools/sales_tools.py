@@ -1,4 +1,5 @@
 from src.data import provider
+from src.utils.date_filters import parse_date_range, filter_by_date
 
 
 _MONTH_NAMES = {
@@ -8,13 +9,28 @@ _MONTH_NAMES = {
 }
 
 
-def _filter_sales(month: int | None, year: int | None) -> list[dict]:
+def _filter_sales(month: int | None = None, year: int | None = None,
+                  period: str | None = None) -> list[dict]:
     result = provider.get_sales()
+    if period:
+        # period takes priority over month/year; falls through only if unparseable.
+        filtered = filter_by_date(result, period, "date")
+        if filtered is not result:
+            return filtered
     if year:
         result = [s for s in result if int(s["date"][:4]) == year]
     if month:
         result = [s for s in result if int(s["date"][5:7]) == month]
     return result
+
+
+def _resolve_label(month: int | None, year: int | None, period: str | None) -> str:
+    if period:
+        start, end = parse_date_range(period)
+        if start and end:
+            from src.utils.formatting import fmt_date
+            return f"{fmt_date(start)} – {fmt_date(end)}"
+    return _period_label(month, year)
 
 
 def _build_category_maps() -> tuple[dict, dict]:
@@ -36,8 +52,9 @@ def _resolve_category(sale: dict, by_id: dict, by_name: dict) -> str:
     return by_name.get(sale["product_name"], "Unknown")
 
 
-def get_top_selling_products(month: int | None = None, year: int | None = None, limit: int = 5) -> dict:
-    filtered = _filter_sales(month, year)
+def get_top_selling_products(period: str | None = None, month: int | None = None,
+                             year: int | None = None, limit: int = 5) -> dict:
+    filtered = _filter_sales(month, year, period)
 
     cat_by_id, cat_by_name = _build_category_maps()
 
@@ -65,18 +82,22 @@ def get_top_selling_products(month: int | None = None, year: int | None = None, 
         "products": top,
         "period_month": month,
         "period_year": year,
+        "period_label": _resolve_label(month, year, period),
         "total_revenue": total_revenue,
         "total_transactions": len(filtered),
     }
 
 
-def get_sales_summary(month: int | None = None, year: int | None = None) -> dict:
-    filtered = _filter_sales(month, year)
+def get_sales_summary(period: str | None = None, month: int | None = None,
+                      year: int | None = None) -> dict:
+    filtered = _filter_sales(month, year, period)
+    label = _resolve_label(month, year, period)
 
     if not filtered:
         return {
             "period_month": month,
             "period_year": year,
+            "period_label": label,
             "total_revenue": 0,
             "total_transactions": 0,
             "avg_transaction": 0,
@@ -108,6 +129,7 @@ def get_sales_summary(month: int | None = None, year: int | None = None) -> dict
     return {
         "period_month": month,
         "period_year": year,
+        "period_label": label,
         "total_revenue": total_revenue,
         "total_transactions": len(filtered),
         "avg_transaction": round(avg_transaction, 2),
@@ -132,7 +154,7 @@ def _period_label(month: int | None, year: int | None) -> str:
 
 def format_top_products(data: dict) -> str:
     from src.utils.formatting import fmt_currency, fmt_product_table
-    period = _period_label(data["period_month"], data["period_year"])
+    period = data.get("period_label") or _period_label(data["period_month"], data["period_year"])
 
     lines = [
         f"## Top Selling Products – {period}",
@@ -147,7 +169,7 @@ def format_top_products(data: dict) -> str:
 
 def format_sales_summary(data: dict) -> str:
     from src.utils.formatting import fmt_currency
-    period = _period_label(data["period_month"], data["period_year"])
+    period = data.get("period_label") or _period_label(data["period_month"], data["period_year"])
 
     if data["total_transactions"] == 0:
         return f"## Sales Summary – {period}\n\n_No sales data found for this period._"

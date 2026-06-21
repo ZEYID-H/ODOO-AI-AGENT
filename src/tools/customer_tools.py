@@ -1,4 +1,5 @@
 from src.data import provider
+from src.utils.date_filters import parse_date_range, filter_by_date
 from src.utils.formatting import fmt_currency, fmt_date, fmt_invoice_table, fmt_payment_table
 
 
@@ -94,11 +95,12 @@ def get_payment_history(customer_name: str) -> dict:
     }
 
 
-def get_top_debtors(limit: int = 10) -> dict:
+def get_top_debtors(limit: int = 10, period: str | None = None) -> dict:
     open_invoices = [
         inv for inv in provider.get_invoices()
         if inv["status"] in ("unpaid", "overdue")
     ]
+    open_invoices = filter_by_date(open_invoices, period, "issue_date")
 
     by_customer: dict[str, dict] = {}
     for inv in open_invoices:
@@ -131,7 +133,7 @@ def get_top_debtors(limit: int = 10) -> dict:
     }
 
 
-def get_customer_statement(customer_name: str) -> dict:
+def get_customer_statement(customer_name: str, period: str | None = None) -> dict:
     customer = _find_customer(customer_name)
     if not customer:
         return {"error": f"Customer '{customer_name}' not found."}
@@ -145,6 +147,18 @@ def get_customer_statement(customer_name: str) -> dict:
         p for p in provider.get_payments()
         if p["customer_name"].upper() == name.upper()
     ]
+
+    invoices = filter_by_date(invoices, period, "issue_date")
+    payments = filter_by_date(payments, period, "date")
+
+    period_label = None
+    period_note = None
+    if period:
+        start, end = parse_date_range(period)
+        if start and end:
+            period_label = f"{fmt_date(start)} – {fmt_date(end)}"
+            period_note = ("Period statement only — running balance does not include "
+                           "opening balance before this period.")
 
     rows = []
     for inv in invoices:
@@ -190,6 +204,8 @@ def get_customer_statement(customer_name: str) -> dict:
         "payment_count": len(payments),
         "reconciles": abs(activity_balance - outstanding_balance) < 0.01,
         "difference": round(outstanding_balance - activity_balance, 2),
+        "period_label": period_label,
+        "period_note": period_note,
     }
 
 
@@ -302,8 +318,12 @@ def format_customer_statement(data: dict) -> str:
     total_tx = len(rows)
     max_rows = 50
 
+    title = f"## Customer Statement: {data['customer_name']}"
+    if data.get("period_label"):
+        title += f" ({data['period_label']})"
+
     lines = [
-        f"## Customer Statement: {data['customer_name']}",
+        title,
         "",
         "| Metric | Value |",
         "|--------|-------|",
@@ -337,7 +357,9 @@ def format_customer_statement(data: dict) -> str:
         lines.append("\n_No transactions found for this customer._")
 
     lines.append("")
-    if data["reconciles"]:
+    if data.get("period_note"):
+        lines.append(f"> {data['period_note']}")
+    elif data["reconciles"]:
         lines.append(
             f"> Reconciled: activity balance matches open-item balance "
             f"({fmt_currency(data['outstanding_balance'])})."

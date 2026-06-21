@@ -1,8 +1,9 @@
 from src.data import provider
+from src.utils.date_filters import filter_by_date
 from src.utils.formatting import fmt_currency, fmt_date, fmt_invoice_table, days_overdue
 
 
-def get_unpaid_invoices(customer_name: str | None = None) -> dict:
+def get_unpaid_invoices(customer_name: str | None = None, period: str | None = None) -> dict:
     invoices = [
         inv for inv in provider.get_invoices()
         if inv["status"] in ("unpaid", "overdue")
@@ -12,6 +13,7 @@ def get_unpaid_invoices(customer_name: str | None = None) -> dict:
             inv for inv in invoices
             if inv["customer_name"].upper() == customer_name.upper()
         ]
+    invoices = filter_by_date(invoices, period, "issue_date")
 
     invoices_sorted = sorted(invoices, key=lambda x: x["due_date"])
     total_amount = sum(inv["amount"] - inv["paid_amount"] for inv in invoices_sorted)
@@ -24,8 +26,9 @@ def get_unpaid_invoices(customer_name: str | None = None) -> dict:
     }
 
 
-def get_overdue_invoices() -> dict:
+def get_overdue_invoices(period: str | None = None) -> dict:
     overdue = [inv for inv in provider.get_invoices() if inv["status"] == "overdue"]
+    overdue = filter_by_date(overdue, period, "issue_date")
     overdue_sorted = sorted(overdue, key=lambda x: x["due_date"])
     total_amount = sum(inv["amount"] - inv["paid_amount"] for inv in overdue_sorted)
 
