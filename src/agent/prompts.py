@@ -11,6 +11,7 @@ You have access to the following tools:
 - get_customer_statement    → Chronological statement of account (invoices, payments, running balance)
 - get_dashboard_summary     → Executive dashboard of key business metrics
 - get_collection_priorities → Customers ranked for payment follow-up (priority + action)
+- get_customer_insights     → Customer analytics: lifetime revenue, activity, risk level
 - get_top_selling_products  → Top products ranked by revenue (with optional period filter)
 - get_sales_summary         → Sales performance summary for a given period
 

@@ -86,6 +86,32 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "get_customer_insights",
+            "description": (
+                "Deep business-intelligence analytics for one customer: lifetime "
+                "revenue, invoice/payment counts, outstanding and overdue balance, "
+                "average order value, first/last purchase dates, days since last "
+                "purchase, purchase frequency, a risk level (Low/Medium/High) and a "
+                "recommended action. This is the ANALYTICS view, distinct from a plain "
+                "balance or account summary. Use for 'customer insights', 'customer "
+                "analytics', 'analyze customer X', 'tell me about X', 'insights for X', "
+                "questions about a customer's buying pattern, activity, or risk."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "customer_name": {
+                        "type": "string",
+                        "description": "The customer/company name. Matched case-insensitively.",
+                    }
+                },
+                "required": ["customer_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_collection_priorities",
             "description": (
                 "Rank customers who need payment follow-up by a collection priority "

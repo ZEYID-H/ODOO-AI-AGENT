@@ -35,6 +35,9 @@ from src.tools.dashboard_tools import (
 from src.tools.collections_tools import (
     get_collection_priorities, format_collection_priorities,
 )
+from src.tools.customer_insights_tools import (
+    get_customer_insights, format_customer_insights,
+)
 
 
 TOOL_REGISTRY = {
@@ -65,6 +68,10 @@ TOOL_REGISTRY = {
     "get_collection_priorities": {
         "function": get_collection_priorities,
         "formatter": format_collection_priorities,
+    },
+    "get_customer_insights": {
+        "function": get_customer_insights,
+        "formatter": format_customer_insights,
     },
     "get_unpaid_invoices": {
         "function": get_unpaid_invoices,

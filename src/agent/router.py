@@ -23,6 +23,9 @@ from src.tools.dashboard_tools import (
 from src.tools.collections_tools import (
     get_collection_priorities, format_collection_priorities,
 )
+from src.tools.customer_insights_tools import (
+    get_customer_insights, format_customer_insights,
+)
 
 # OpenAI Function Calling layer. Imported defensively so the app still runs if
 # the openai SDK is absent: any import failure leaves _OPENAI_IMPORTED False and
@@ -117,6 +120,10 @@ def _detect_intent(query: str) -> str:
     if any(kw in q for kw in ["payment history", "payment record", "payments made",
                                "show payment", "payment for"]):
         return "payment_history"
+
+    if any(kw in q for kw in ["customer insight", "customer analytic", "analyze customer",
+                               "insights for", "tell me about", "customer risk"]):
+        return "customer_insights"
 
     if any(kw in q for kw in ["customer summary", "account summary", "customer overview",
                                "account overview", "summarize customer", "customer profile"]):
@@ -243,6 +250,17 @@ def _rule_based_route(query: str) -> dict:
             "tool": "get_payment_history",
             "parameters": {"customer_name": customer},
             "result": format_payment_history(data),
+        }
+
+    # ── Customer insights (requires customer) ───────────────────────────────
+    if intent == "customer_insights":
+        if not customer:
+            return {"tool": "get_customer_insights", "parameters": {}, "result": NO_CUSTOMER_MSG}
+        data = get_customer_insights(customer)
+        return {
+            "tool": "get_customer_insights",
+            "parameters": {"customer_name": customer},
+            "result": format_customer_insights(data),
         }
 
     # ── Customer summary (requires customer) ───────────────────────────────
