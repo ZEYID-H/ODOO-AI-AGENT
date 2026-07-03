@@ -3,11 +3,21 @@
 **Scope:** the AI agent's access to Odoo ERP.
 **Classification:** READ-ONLY system. The agent is an **ERP Analyst**, never an
 **ERP Operator**.
-**Status:** security layer implemented and tested; live gateway (`odoo_service.py`)
-not yet built.
+**Status:** security layer implemented, tested, and in continuous use — the
+gateway (`src/services/odoo_service.py`) is built and is the sole path every
+tool uses to reach Odoo (14 tools registered as of this writing).
 
 This is a threat model, not generic documentation. It states what is protected,
 by what, and what is *not* protected.
+
+**Why the assistant cannot modify Odoo, in one paragraph:** the LLM never
+issues raw Odoo method calls — it only selects among registered, read-only
+tool functions. Even if a tool call were somehow mis-selected or the model
+were prompt-injected, every path from a tool to Odoo funnels through one
+gateway file that whitelists exactly `search` / `search_read` / `read` and
+raises `SecurityException` on anything else, on top of a dedicated Odoo user
+whose ACLs grant no write permission at all. Three independent layers would
+all have to fail simultaneously for a write to occur.
 
 ---
 
@@ -26,8 +36,8 @@ by what, and what is *not* protected.
 - Any Odoo method outside the whitelist (blocked by exclusion).
 
 **Where Odoo access starts and ends:**
-- **Starts** only inside the future single gateway `src/services/odoo_service.py`,
-  which must call `validate_startup()` once and route every call through
+- **Starts** only inside the single gateway `src/services/odoo_service.py`,
+  which calls `validate_startup()` once and routes every call through
   `enforce_read_only()`.
 - **Ends** there: no other module may open an XML-RPC connection or call
   `execute_kw`. This is enforced by `test_no_direct_xmlrpc_outside_gateway`.
@@ -61,7 +71,7 @@ Layer 2 still blocks every non-read method that passes through the gateway.
 
 | # | Attack vector | Mitigation(s) | Residual |
 |---|---|---|---|
-| A1 | **LLM prompt injection** ("create an invoice", "post this", "reconcile") | The LLM only selects among 7 read tools; it cannot name Odoo methods. Even a malicious tool call resolves to read functions. Layer 2 `enforce_read_only()` blocks any write method; Layer 1 ACLs block it at the DB. | None practical for writes; see R1 (data exposure). |
+| A1 | **LLM prompt injection** ("create an invoice", "post this", "reconcile") | The LLM only selects among the registered read-only tools (`TOOL_REGISTRY`, 14 at time of writing); it cannot name Odoo methods. Even a malicious tool call resolves to read functions. Layer 2 `enforce_read_only()` blocks any write method; Layer 1 ACLs block it at the DB. | None practical for writes; see R1 (data exposure). |
 | A2 | **Developer calls `execute_kw` directly** (bypassing the guard) | `test_no_direct_xmlrpc_outside_gateway` fails CI if `execute_kw`/`ServerProxy` appears in any `src/` file except `odoo_service.py`. The gateway itself wraps every call in `enforce_read_only()`. | Bypass possible only by also editing/deleting the test (see R3). |
 | A3 | **App run with an admin Odoo account** | `validate_startup()` raises unless `ODOO_USERNAME == EXPECTED_ODOO_USER` (`AI_AGENT_READONLY`). | If someone sets `EXPECTED_ODOO_USER=admin` *and* uses admin creds, Layer 2 still blocks writes; but read scope widens (R1). |
 | A4 | **`READ_ONLY_MODE` accidentally disabled** | `assert_read_only_mode()` runs at import of `odoo_security` and inside `enforce_read_only()` and `validate_startup()`; setting it `False` makes import/boot raise. Proven by `test_startup_refuses_when_mode_disabled`. | None unless code is edited (R3). |
@@ -109,14 +119,15 @@ Layer 2 still blocks every non-read method that passes through the gateway.
 
 ## 7. Final security verdict
 
-**Safe to proceed to building `odoo_service.py` — under these assumptions:**
+**Safe to operate `odoo_service.py` in production — under these assumptions:**
 
 - The Odoo user `AI_AGENT_READONLY` is configured per `docs/ODOO_READONLY_USER.md`
   (read-only ACLs; no functional write/post groups). *This is the primary control
   and is configured by the Odoo admin, outside this codebase.*
-- `odoo_service.py`, when built, (a) calls `validate_startup()` once before
-  connecting, (b) is the ONLY file using `execute_kw`/`ServerProxy`, and
-  (c) routes every call through `enforce_read_only()`.
+- `odoo_service.py` (a) calls `validate_startup()` once before connecting,
+  (b) is the ONLY file using `execute_kw`/`ServerProxy` (enforced by
+  `test_no_direct_xmlrpc_outside_gateway`), and (c) routes every call through
+  `enforce_read_only()`.
 - `.env` is excluded from version control and holds the read-only user's
   credentials/API key only.
 - Code and tests are protected by review and access control (R3).

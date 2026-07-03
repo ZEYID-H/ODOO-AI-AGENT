@@ -8,3 +8,11 @@ security_audit.log
 exports/
 *.xlsx
 *.csv
+
+# OS / editor / misc
+.DS_Store
+Thumbs.db
+*.log
+.pytest_cache/
+.vscode/
+.idea/
