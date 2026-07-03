@@ -38,6 +38,9 @@ from src.tools.collections_tools import (
 from src.tools.customer_insights_tools import (
     get_customer_insights, format_customer_insights,
 )
+from src.tools.product_insights_tools import (
+    get_product_insights, format_product_insights,
+)
 
 
 TOOL_REGISTRY = {
@@ -72,6 +75,10 @@ TOOL_REGISTRY = {
     "get_customer_insights": {
         "function": get_customer_insights,
         "formatter": format_customer_insights,
+    },
+    "get_product_insights": {
+        "function": get_product_insights,
+        "formatter": format_product_insights,
     },
     "get_unpaid_invoices": {
         "function": get_unpaid_invoices,

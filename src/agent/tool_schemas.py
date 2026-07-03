@@ -86,6 +86,36 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "get_product_insights",
+            "description": (
+                "Deep business-intelligence analytics for one product: revenue, "
+                "units sold, customer count, first/last sale dates, average sale "
+                "price, share of total revenue, and top customers for that product. "
+                "Matching: tries an exact product match first; if none, aggregates "
+                "every SKU whose name contains the query (e.g. 'OLIVE OIL' combines "
+                "all olive oil SKUs) and lists which were combined. Use for 'product "
+                "insights', 'product analytics', 'analyze product X', 'tell me about "
+                "X' (a product), 'product performance', 'how is X selling', 'insights "
+                "for product X'."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "product_name": {
+                        "type": "string",
+                        "description": (
+                            "The product name or a partial/category name, e.g. "
+                            "'[OIL-16L-T] OLIVE OIL (16L TIN)' or 'OLIVE OIL'."
+                        ),
+                    }
+                },
+                "required": ["product_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_customer_insights",
             "description": (
                 "Deep business-intelligence analytics for one customer: lifetime "

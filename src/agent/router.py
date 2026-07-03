@@ -26,6 +26,9 @@ from src.tools.collections_tools import (
 from src.tools.customer_insights_tools import (
     get_customer_insights, format_customer_insights,
 )
+from src.tools.product_insights_tools import (
+    get_product_insights, format_product_insights,
+)
 
 # OpenAI Function Calling layer. Imported defensively so the app still runs if
 # the openai SDK is absent: any import failure leaves _OPENAI_IMPORTED False and
@@ -52,6 +55,29 @@ def _extract_customer(query: str) -> str | None:
         if c["name"].upper() in q_upper:
             return c["name"]
     return None
+
+
+_PRODUCT_TRIGGER_PHRASES = [
+    "insights for product", "product insights for", "product insight for",
+    "product analytics for", "product analytic for", "analyze product",
+    "product performance for", "product performance", "how is", "is selling",
+    "selling", "insights for", "tell me about", "product for", "for product",
+    "product insight", "product analytic",
+]
+
+
+def _extract_product_query(query: str) -> str:
+    """Best-effort: strip known trigger phrases, leaving the product text.
+
+    The OpenAI path extracts product_name precisely via the schema; this is
+    only used by the offline rule-based fallback.
+    """
+    remaining = query
+    for phrase in sorted(_PRODUCT_TRIGGER_PHRASES, key=len, reverse=True):
+        idx = remaining.lower().find(phrase)
+        if idx != -1:
+            remaining = remaining[:idx] + remaining[idx + len(phrase):]
+    return remaining.strip(" ?.!")
 
 
 def _extract_period(query: str) -> tuple[int | None, int | None]:
@@ -120,6 +146,11 @@ def _detect_intent(query: str) -> str:
     if any(kw in q for kw in ["payment history", "payment record", "payments made",
                                "show payment", "payment for"]):
         return "payment_history"
+
+    if any(kw in q for kw in ["product insight", "product analytic", "analyze product",
+                               "product performance", "insights for product", "how is",
+                               "is selling"]):
+        return "product_insights"
 
     if any(kw in q for kw in ["customer insight", "customer analytic", "analyze customer",
                                "insights for", "tell me about", "customer risk"]):
@@ -250,6 +281,22 @@ def _rule_based_route(query: str) -> dict:
             "tool": "get_payment_history",
             "parameters": {"customer_name": customer},
             "result": format_payment_history(data),
+        }
+
+    # ── Product insights (no fixed customer list — best-effort text extraction) ─
+    if intent == "product_insights":
+        product_query = _extract_product_query(query)
+        if not product_query:
+            return {
+                "tool": "get_product_insights",
+                "parameters": {},
+                "result": "Please specify a product to analyze.",
+            }
+        data = get_product_insights(product_query)
+        return {
+            "tool": "get_product_insights",
+            "parameters": {"product_name": product_query},
+            "result": format_product_insights(data),
         }
 
     # ── Customer insights (requires customer) ───────────────────────────────
