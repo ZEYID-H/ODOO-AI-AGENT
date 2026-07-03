@@ -29,6 +29,9 @@ from src.tools.customer_insights_tools import (
 from src.tools.product_insights_tools import (
     get_product_insights, format_product_insights,
 )
+from src.tools.business_alerts_tools import (
+    get_business_alerts, format_business_alerts,
+)
 
 # OpenAI Function Calling layer. Imported defensively so the app still runs if
 # the openai SDK is absent: any import failure leaves _OPENAI_IMPORTED False and
@@ -109,6 +112,12 @@ def _detect_intent(query: str) -> str:
     q = query.lower()
 
     # Ordered by specificity — most specific patterns first
+    if any(kw in q for kw in ["business alert", "show alert", "what should i worry",
+                               "urgent business risk", "urgent business issue",
+                               "business health", "problems in the business",
+                               "what needs attention"]):
+        return "business_alerts"
+
     if any(kw in q for kw in ["collection priorit", "collections", "payment follow",
                                "follow up", "follow-up", "who should we call",
                                "who should we follow", "overdue customer",
@@ -201,6 +210,15 @@ def _rule_based_route(query: str) -> dict:
     intent = _detect_intent(query)
     customer = _extract_customer(query)
     month, year = _extract_period(query)
+
+    # ── Business alerts (no customer filter needed) ─────────────────────────
+    if intent == "business_alerts":
+        data = get_business_alerts()
+        return {
+            "tool": "get_business_alerts",
+            "parameters": {},
+            "result": format_business_alerts(data),
+        }
 
     # ── Collection priorities (no customer filter needed) ───────────────────
     if intent == "collections":

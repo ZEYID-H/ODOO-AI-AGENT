@@ -41,6 +41,9 @@ from src.tools.customer_insights_tools import (
 from src.tools.product_insights_tools import (
     get_product_insights, format_product_insights,
 )
+from src.tools.business_alerts_tools import (
+    get_business_alerts, format_business_alerts,
+)
 
 
 TOOL_REGISTRY = {
@@ -79,6 +82,10 @@ TOOL_REGISTRY = {
     "get_product_insights": {
         "function": get_product_insights,
         "formatter": format_product_insights,
+    },
+    "get_business_alerts": {
+        "function": get_business_alerts,
+        "formatter": format_business_alerts,
     },
     "get_unpaid_invoices": {
         "function": get_unpaid_invoices,

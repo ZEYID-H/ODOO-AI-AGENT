@@ -86,6 +86,29 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
+            "name": "get_business_alerts",
+            "description": (
+                "Business-risk and opportunity alert dashboard: overdue customer "
+                "risks, large unpaid invoices, inactive customers, product "
+                "concentration risks, and recommended actions. Use for 'business "
+                "alerts', 'show alerts', 'what should I worry about', 'risks', "
+                "'urgent issues', 'problems in the business', 'business health alerts'."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of alerts to return. Default 10.",
+                    }
+                },
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_product_insights",
             "description": (
                 "Deep business-intelligence analytics for one product: revenue, "
