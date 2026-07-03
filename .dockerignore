@@ -1,0 +1,23 @@
+# Secrets — never bake into the image; pass at runtime via --env-file / platform secrets.
+.env
+
+# Local/dev artifacts
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.git/
+.claude/
+.vscode/
+.idea/
+
+# Runtime artifacts not needed in the image
+exports/
+security_audit.log
+*.log
+.DS_Store
+Thumbs.db
+
+# Note: tests/, test_routing.py are intentionally KEPT in the image — they're
+# tiny pure-Python files and let `docker exec <container> python tests/...`
+# validate security/regression against the actual deployed artifact.
