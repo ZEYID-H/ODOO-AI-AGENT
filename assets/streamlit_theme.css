@@ -144,6 +144,12 @@ hr {
     color: var(--on-surface) !important;
     font-family: 'Inter', sans-serif !important;
 }
+/* Streamlit paints the input pill's inner wrapper divs with an opaque light
+   background; the outer stChatInput card already carries the dark surface
+   color, so the descendants must stay transparent to show it through. */
+[data-testid="stChatInput"] div {
+    background-color: transparent !important;
+}
 
 /* ── Chat messages ────────────────────────────────────────────────────────── */
 [data-testid="stChatMessage"] {
@@ -182,13 +188,51 @@ hr {
     border-radius: var(--radius-md) !important;
     overflow: hidden;
 }
-[data-testid="stExpander"] summary {
+[data-testid="stExpander"] summary,
+[data-testid="stExpander"] summary:hover,
+[data-testid="stExpander"] summary:active,
+[data-testid="stExpander"] summary:focus,
+[data-testid="stExpander"] details[open] summary {
     font-family: 'Manrope', sans-serif;
     font-weight: 600;
     color: var(--on-surface);
+    background: var(--surface-container-lowest) !important;
 }
 [data-testid="stExpander"] summary:hover {
     color: var(--primary);
+}
+
+/* ── Bottom chat bar wrapper (Streamlit renders an unlabeled white div here
+   in the fixed footer) ──────────────────────────────────────────────────── */
+[data-testid="stBottom"],
+[data-testid="stBottom"] > div,
+[data-testid="stBottomBlockContainer"] {
+    background: var(--background) !important;
+}
+[data-testid="stBottom"] {
+    border-top: 1px solid var(--outline-variant);
+}
+
+/* ── Native charts (st.bar_chart / Vega-Lite) ────────────────────────────── */
+[data-testid="stVegaLiteChart"] {
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-md);
+    padding: 0.5rem;
+}
+[data-testid="stVegaLiteChart"] svg {
+    background-color: var(--surface-container-lowest) !important;
+}
+[data-testid="stVegaLiteChart"] svg rect.background {
+    fill: var(--surface-container-lowest) !important;
+}
+[data-testid="stVegaLiteChart"] text {
+    fill: var(--on-surface-variant) !important;
+}
+[data-testid="stVegaLiteChart"] .role-axis-tick line,
+[data-testid="stVegaLiteChart"] .role-axis-grid line,
+[data-testid="stVegaLiteChart"] .role-axis-domain path {
+    stroke: var(--outline-variant) !important;
 }
 
 /* ── Status widget ("Thinking...") ───────────────────────────────────────── */
