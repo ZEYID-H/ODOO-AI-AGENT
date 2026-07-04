@@ -1,11 +1,13 @@
 /*
- * Executive Intelligence — Stitch dark-mode theme for the Streamlit shell.
- * Source: Stitch project "Odoo Insight Copilot" (projects/1999165054501836285)
- *   - AI Assistant Home, Executive Dashboard, Customer Insights, Business Alerts
+ * Executive Intelligence — Stitch dark-mode design system for Streamlit.
+ * Source of truth: Stitch project "Odoo Insight Copilot"
+ *   (projects/1999165054501836285) — AI Assistant Home, Executive Dashboard,
+ *   Customer Insights, Business Alerts screens.
  * Presentation-only. No business logic lives here.
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap');
 
 :root {
     --background: #101415;
@@ -35,216 +37,494 @@
     --error-container: #93000a;
     --on-error-container: #ffdad6;
 
-    --tertiary-container: #fc7c78;
+    --sev-high: #fc7c78;
 
     --radius-sm: 4px;
     --radius-md: 8px;
     --radius-lg: 12px;
 }
 
-/* ── Global surface & typography ─────────────────────────────────────────── */
-.stApp, [data-testid="stAppViewContainer"] {
-    background: var(--background);
-}
-[data-testid="stHeader"] {
-    background: transparent;
-}
-html, body, .stMarkdown, p, span, div, label, li {
-    font-family: 'Inter', sans-serif;
-}
+/* ── Global shell ─────────────────────────────────────────────────────────── */
+.stApp, [data-testid="stAppViewContainer"] { background: var(--background); }
+[data-testid="stHeader"] { background: transparent; }
+[data-testid="stToolbar"], [data-testid="stDecoration"], #MainMenu,
+[data-testid="stAppDeployButton"] { display: none !important; }
+
+.stMainBlockContainer { max-width: 1200px; padding-top: 1.5rem; }
+
+html, body, .stMarkdown, p, span, div, label, li { font-family: 'Inter', sans-serif; }
 h1, h2, h3, h4, h5, h6 {
     font-family: 'Manrope', sans-serif !important;
     color: var(--on-surface) !important;
     letter-spacing: -0.01em;
 }
-.stApp, .stApp p, .stApp li, .stApp label, .stMarkdown {
-    color: var(--on-surface);
-}
-code, pre, .stCodeBlock, kbd {
-    font-family: 'JetBrains Mono', monospace !important;
-}
-hr {
-    border-color: var(--outline-variant) !important;
-}
-::-webkit-scrollbar { width: 6px; height: 6px; }
+.stApp, .stApp p, .stApp li, .stApp label, .stMarkdown { color: var(--on-surface); }
+code, pre, .stCodeBlock, kbd { font-family: 'JetBrains Mono', monospace !important; }
+hr { border-color: var(--outline-variant) !important; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--outline-variant); border-radius: 10px; }
 
-/* ── Sidebar (SideNavBar) ─────────────────────────────────────────────────── */
+/* Material Symbols in our HTML blocks */
+.msym {
+    font-family: 'Material Symbols Outlined' !important;
+    font-weight: normal; font-style: normal;
+    font-size: 22px; line-height: 1;
+    display: inline-block; vertical-align: middle;
+    letter-spacing: normal; text-transform: none;
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    -webkit-font-smoothing: antialiased;
+}
+.msym.sm { font-size: 17px; }
+.msym.lg { font-size: 28px; }
+
+/* ── Caps label (JetBrains Mono, tracking) — Stitch label-caps token ─────── */
+.xcaps {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--on-surface-variant);
+}
+.xcaps.pri { color: var(--primary); }
+.xcaps.err { color: var(--error); }
+.xcaps.dim { color: var(--outline); }
+
+/* ── Sidebar → Stitch SideNavBar ─────────────────────────────────────────── */
 [data-testid="stSidebar"] {
     background: var(--surface-container);
     border-right: 1px solid var(--outline-variant);
+    min-width: 270px !important; max-width: 270px !important;
 }
-[data-testid="stSidebar"] h1 {
-    font-size: 1.25rem !important;
+[data-testid="stSidebar"] > div:first-child { padding-top: 0.5rem; }
+[data-testid="stSidebar"] hr { margin: 0.8rem 0; }
+
+.xi-brand { padding: 0.6rem 0.25rem 0.2rem; }
+.xi-brand h1 {
+    font-family: 'Manrope', sans-serif !important;
+    font-size: 1.22rem !important; font-weight: 800 !important;
+    line-height: 1.25 !important; margin: 0 0 2px 0 !important;
+    color: var(--on-surface) !important;
 }
-[data-testid="stSidebar"] .stCaption, [data-testid="stSidebar"] small {
-    color: var(--on-surface-variant) !important;
-}
-[data-testid="stSidebar"] .stButton>button {
+
+/* Nav rows */
+[data-testid="stSidebar"] [class*="st-key-nav_"] .stButton>button,
+[data-testid="stSidebar"] [class*="st-key-nav_"] button {
     background: transparent;
     border: 1px solid transparent;
     color: var(--on-surface-variant);
-    text-align: left;
-    justify-content: flex-start;
+    width: 100%;
+    text-align: left; justify-content: flex-start;
     border-radius: var(--radius-sm);
     font-family: 'Inter', sans-serif;
-    font-weight: 500;
-    font-size: 0.85rem;
-    padding: 0.5rem 0.75rem;
+    font-weight: 500; font-size: 0.86rem;
+    padding: 0.48rem 0.7rem;
+    min-height: 0;
     transition: all .15s ease;
 }
-[data-testid="stSidebar"] .stButton>button:hover {
+[data-testid="stSidebar"] [class*="st-key-nav_"] button:hover {
     background: var(--surface-container-high);
-    color: var(--primary);
-    border-color: var(--outline-variant);
+    color: var(--on-surface);
+    transform: translateX(3px);
+    border-color: transparent;
+}
+[data-testid="stSidebar"] [class*="st-key-nav_"] button:focus:not(:active) {
+    color: var(--on-surface);
+}
+[data-testid="stSidebar"] .stButton { margin-bottom: -6px; }
+
+/* Left-align label content inside nav and quick-action buttons (Streamlit
+   centers button content by default via an inner flex container). */
+[class*="st-key-nav_"] button, [class*="st-key-qab_"] button {
+    justify-content: flex-start !important;
+}
+[class*="st-key-nav_"] button > div, [class*="st-key-qab_"] button > div {
+    justify-content: flex-start !important;
+    text-align: left !important;
+}
+[class*="st-key-nav_"] button p, [class*="st-key-qab_"] button p {
+    text-align: left !important;
 }
 
-/* ── Buttons (default = ghost/ref, ties to Stitch secondary button) ────────── */
+/* Sidebar footer status rows */
+.xi-side-foot { border-top: 1px solid var(--outline-variant); padding-top: 0.9rem; margin-top: 0.6rem; }
+.xi-side-foot .row {
+    display: flex; align-items: center; gap: 0.55rem;
+    margin-bottom: 0.55rem;
+}
+.xi-side-foot .row .msym { font-size: 17px; color: var(--outline); }
+.xi-side-foot .row.on .msym, .xi-side-foot .row.on .xcaps { color: var(--primary); }
+
+/* Clear chat button */
+[data-testid="stSidebar"] [class*="st-key-clear_chat"] button {
+    background: transparent; border: 1px solid var(--outline-variant);
+    color: var(--on-surface-variant); font-size: 0.78rem; font-weight: 500;
+    border-radius: var(--radius-sm); width: 100%;
+}
+[data-testid="stSidebar"] [class*="st-key-clear_chat"] button:hover {
+    border-color: var(--error); color: var(--error);
+}
+
+/* ── Top bar ──────────────────────────────────────────────────────────────── */
+.xi-topbar {
+    display: flex; justify-content: flex-end; align-items: center;
+    gap: 1.4rem; padding: 0.15rem 0 0.9rem;
+    border-bottom: 1px solid var(--outline-variant);
+    margin-bottom: 1.6rem;
+}
+.xi-topbar .item { display: inline-flex; align-items: center; gap: 0.45rem; }
+.xi-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); display: inline-block; }
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
 .stButton>button {
     background: var(--surface-container-high);
     color: var(--on-surface);
     border: 1px solid var(--outline-variant);
     border-radius: var(--radius-sm);
-    font-weight: 600;
+    font-weight: 600; font-size: 0.82rem;
     transition: all .15s ease;
 }
 .stButton>button:hover {
-    border-color: var(--primary);
-    color: var(--primary);
+    border-color: var(--primary); color: var(--primary);
     background: var(--surface-container-highest);
 }
-.stButton>button:focus:not(:active) {
-    border-color: var(--primary);
-    color: var(--primary);
+.stButton>button:focus:not(:active) { border-color: var(--primary); color: var(--primary); }
+.stButton>button[kind="primary"] {
+    background: var(--primary); color: var(--on-primary); border: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    box-shadow: 0 4px 18px rgba(78, 222, 163, 0.15);
 }
+.stButton>button[kind="primary"]:hover { filter: brightness(1.1); color: var(--on-primary); }
 [data-testid="stDownloadButton"]>button {
-    background: var(--primary);
-    color: var(--on-primary);
-    border: none;
-    border-radius: var(--radius-sm);
-    font-weight: 700;
+    background: var(--primary); color: var(--on-primary); border: none;
+    border-radius: var(--radius-sm); font-weight: 700;
 }
-[data-testid="stDownloadButton"]>button:hover {
-    filter: brightness(1.1);
+[data-testid="stDownloadButton"]>button:hover { filter: brightness(1.1); }
+
+/* ── Hero (AI Assistant Home) ─────────────────────────────────────────────── */
+.xi-hero { text-align: center; padding: 2.6rem 0 1.2rem; }
+.xi-hero .headline {
+    font-family: 'Manrope', sans-serif;
+    font-size: 2.55rem; font-weight: 700; line-height: 1.18;
+    letter-spacing: -0.02em; color: var(--on-surface);
+    max-width: 780px; margin: 0.4rem auto 0;
 }
 
-/* ── Chat input (AI command bar) ─────────────────────────────────────────── */
+/* ── Chat input → Stitch AI command bar ──────────────────────────────────── */
 [data-testid="stChatInput"] {
     background: var(--surface-container-lowest);
     border: 1px solid var(--outline-variant);
     border-radius: var(--radius-lg);
-    transition: all .2s ease;
+    box-shadow: 0 0 34px rgba(78, 222, 163, 0.07), 0 18px 40px rgba(0,0,0,0.5);
+    transition: all .25s ease;
+    padding-left: 2.5rem;
+    position: relative;
+}
+[data-testid="stChatInput"]::before {
+    content: 'auto_awesome';
+    font-family: 'Material Symbols Outlined';
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    position: absolute; left: 0.95rem; top: 50%; transform: translateY(-50%);
+    color: var(--primary); font-size: 21px; pointer-events: none; z-index: 2;
 }
 [data-testid="stChatInput"]:focus-within {
     border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(78, 222, 163, 0.18);
+    box-shadow: 0 0 0 3px rgba(78, 222, 163, 0.18), 0 0 44px rgba(78, 222, 163, 0.12);
 }
 [data-testid="stChatInput"] textarea {
     color: var(--on-surface) !important;
     font-family: 'Inter', sans-serif !important;
+    font-size: 0.95rem !important;
 }
-/* Streamlit paints the input pill's inner wrapper divs with an opaque light
-   background; the outer stChatInput card already carries the dark surface
-   color, so the descendants must stay transparent to show it through. */
-[data-testid="stChatInput"] div {
-    background-color: transparent !important;
-}
+[data-testid="stChatInput"] div { background-color: transparent !important; }
+[data-testid="stChatInput"] button { color: var(--primary) !important; }
 
-/* ── Chat messages ────────────────────────────────────────────────────────── */
-[data-testid="stChatMessage"] {
+/* Bottom docked bar wrapper */
+[data-testid="stBottom"], [data-testid="stBottom"] > div,
+[data-testid="stBottomBlockContainer"] { background: var(--background) !important; }
+[data-testid="stBottom"] { border-top: 1px solid var(--outline-variant); }
+
+/* ── Section header (title left, caps link right) ────────────────────────── */
+.xi-sect {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin: 0.4rem 0 1.0rem;
+}
+.xi-sect .t {
+    font-family: 'Manrope', sans-serif;
+    font-size: 1.45rem; font-weight: 700; letter-spacing: -0.01em;
+    color: var(--on-surface);
+}
+.xi-sect .sub { font-size: 0.86rem; color: var(--on-surface-variant); margin-top: 2px; }
+
+/* ── Icon tile (rounded square w/ tinted bg) ─────────────────────────────── */
+.xi-tile {
+    width: 40px; height: 40px; border-radius: var(--radius-md);
+    display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(78, 222, 163, 0.10); color: var(--primary);
+}
+.xi-tile .msym { font-size: 21px; }
+.xi-tile.sec { background: rgba(185, 199, 224, 0.10); color: var(--secondary); }
+.xi-tile.err { background: rgba(255, 180, 171, 0.10); color: var(--error); }
+.xi-tile.neu { background: var(--surface-variant); color: var(--on-surface); }
+
+/* ── Quick Intelligence Action cards (glass) ─────────────────────────────── */
+[class*="st-key-qa_"] {
+    background: rgba(25, 28, 30, 0.6) !important;
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(60, 74, 66, 0.5) !important;
+    border-radius: var(--radius-lg) !important;
+    padding: 1.15rem 1.15rem 0.75rem !important;
+    transition: all .2s ease;
+    height: 100%;
+}
+[class*="st-key-qa_"]:hover {
+    background: rgba(39, 42, 44, 0.85) !important;
+    border-color: rgba(78, 222, 163, 0.35) !important;
+    transform: translateY(-2px);
+}
+.st-key-qa_3 { border-left: 3px solid var(--error) !important; }              /* Business Alerts */
+.st-key-qa_7 { border-left: 3px solid rgba(255, 180, 171, 0.35) !important; } /* Overdue Invoices */
+.xi-qhead { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.8rem; }
+.xi-qhead .arr { color: var(--outline); transition: color .15s ease; }
+[class*="st-key-qa_"]:hover .xi-qhead .arr { color: var(--primary); }
+.xi-qtitle {
+    font-family: 'Manrope', sans-serif; font-size: 1.02rem; font-weight: 700;
+    color: var(--on-surface); margin-bottom: 0.25rem; letter-spacing: -0.01em;
+}
+.xi-qdesc { font-size: 0.8rem; color: var(--on-surface-variant); line-height: 1.45; min-height: 2.5em; }
+[class*="st-key-qa_"] .stButton>button {
+    background: transparent; border: none; padding: 0.35rem 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 0.09em;
+    text-transform: uppercase; color: var(--primary);
+    justify-content: flex-start; text-align: left; width: 100%;
+    min-height: 0;
+}
+[class*="st-key-qa_"] .stButton>button:hover { color: var(--primary); filter: brightness(1.2); background: transparent; }
+
+/* ── Premium card (bordered container / chart cards) ─────────────────────── */
+[data-testid="stVerticalBlockBorderWrapper"] {
+    border-color: var(--outline-variant) !important;
+    border-radius: var(--radius-lg) !important;
+    background: var(--surface-container-lowest);
+}
+[class*="st-key-chart_"] {
+    background: var(--surface-container-lowest) !important;
+    border: 1px solid var(--outline-variant) !important;
+    border-radius: var(--radius-lg) !important;
+    padding: 1.2rem 1.3rem !important;
+}
+.xi-card-h {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding-bottom: 0.7rem; margin-bottom: 0.8rem;
+    border-bottom: 1px solid var(--outline-variant);
+}
+.xi-card-h .t {
+    font-family: 'Manrope', sans-serif; font-size: 1.08rem; font-weight: 700;
+    color: var(--on-surface);
+}
+.xi-card-h .sub { font-size: 0.78rem; color: var(--on-surface-variant); }
+
+/* ── KPI cards (Executive Dashboard) ─────────────────────────────────────── */
+.xi-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.1rem; margin-bottom: 1.1rem; }
+@media (max-width: 900px) { .xi-kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+.xi-kpi {
     background: var(--surface-container-lowest);
     border: 1px solid var(--outline-variant);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-lg);
+    padding: 1.05rem 1.15rem;
+    transition: border-color .2s ease;
 }
+.xi-kpi:hover { border-color: rgba(78, 222, 163, 0.5); }
+.xi-kpi.warn:hover { border-color: rgba(255, 180, 171, 0.5); }
+.xi-kpi .head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.7rem; }
+.xi-kpi .val {
+    font-family: 'Manrope', sans-serif; font-size: 1.5rem; font-weight: 800;
+    color: var(--on-surface); letter-spacing: -0.01em; line-height: 1.15;
+}
+.xi-kpi .val.err { color: var(--error); }
+.xi-kpi .val.pri { color: var(--primary); }
+.xi-kpi .sub { font-size: 0.78rem; color: var(--on-surface-variant); margin-top: 0.35rem; }
+.xi-kpi .sub.err { color: var(--error); }
 
-/* ── Metrics (KPI cards) ──────────────────────────────────────────────────── */
-[data-testid="stMetric"] {
-    background: var(--surface-container-lowest);
+/* Small chip badges on KPI cards */
+.xi-chip {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; font-weight: 700;
+    letter-spacing: 0.07em; text-transform: uppercase;
+    padding: 0.18rem 0.45rem; border-radius: var(--radius-sm);
+    background: rgba(78, 222, 163, 0.18); color: var(--primary);
+}
+.xi-chip.err { background: rgba(147, 0, 10, 0.5); color: var(--on-error-container); }
+.xi-chip.neu { background: var(--surface-container-high); color: var(--on-surface-variant); }
+
+/* Slim secondary KPI row */
+.xi-slim-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.1rem; margin-bottom: 1.1rem; }
+@media (max-width: 900px) { .xi-slim-grid { grid-template-columns: repeat(2, 1fr); } }
+.xi-slim {
+    display: flex; align-items: center; gap: 0.8rem;
+    background: var(--surface-container-low);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-lg);
+    padding: 0.8rem 1rem;
+}
+.xi-slim .msym { color: var(--primary); font-size: 22px; }
+.xi-slim .num { font-family: 'Manrope', sans-serif; font-size: 1.2rem; font-weight: 800; color: var(--on-surface); line-height: 1.2; }
+
+/* ── List rows (Top Customers panel) ─────────────────────────────────────── */
+.xi-listrow {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.55rem 0;
+}
+.xi-listrow + .xi-listrow { border-top: 1px solid rgba(60, 74, 66, 0.4); }
+.xi-listrow .l { display: flex; align-items: center; gap: 0.75rem; }
+.xi-init {
+    width: 38px; height: 38px; border-radius: var(--radius-md);
+    background: var(--surface-container-high);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace; font-weight: 700; font-size: 0.78rem;
+    color: var(--primary); flex: none;
+}
+.xi-listrow .name { font-size: 0.88rem; font-weight: 600; color: var(--on-surface); }
+.xi-listrow .amt { font-size: 0.9rem; font-weight: 700; color: var(--on-surface); text-align: right; }
+
+/* ── Alert cards (Business Alerts bento) ─────────────────────────────────── */
+.xi-alert-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.75rem; }
+@media (max-width: 900px) { .xi-alert-grid { grid-template-columns: 1fr; } }
+.xi-acard {
+    background: var(--surface-container-low);
     border: 1px solid var(--outline-variant);
     border-radius: var(--radius-md);
-    padding: 1rem 1.1rem;
+    display: flex; overflow: hidden;
 }
-[data-testid="stMetric"]:hover {
-    border-color: rgba(78, 222, 163, 0.5);
+.xi-acard.wide { grid-column: 1 / -1; }
+.xi-strip { width: 5px; flex: none; background: var(--outline-variant); }
+.xi-strip.critical { background: var(--error); }
+.xi-strip.high { background: var(--sev-high); }
+.xi-strip.medium { background: var(--secondary); }
+.xi-acard .body { flex: 1; padding: 1rem 1.15rem; min-width: 0; }
+.xi-acard .toprow { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.8rem; margin-bottom: 0.65rem; }
+.xi-acard .title {
+    font-family: 'Manrope', sans-serif; font-size: 1.0rem; font-weight: 700;
+    color: var(--on-surface); margin-top: 0.3rem; letter-spacing: -0.01em;
 }
-[data-testid="stMetricLabel"] {
-    font-family: 'JetBrains Mono', monospace !important;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-size: 0.68rem !important;
-    color: var(--on-surface-variant) !important;
+.xi-sev {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; font-weight: 700;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 0.16rem 0.5rem; border-radius: 3px; display: inline-block;
 }
-[data-testid="stMetricValue"] {
-    font-family: 'Manrope', sans-serif !important;
-    font-weight: 700 !important;
-    color: var(--on-surface) !important;
+.xi-sev.critical { background: var(--error-container); color: var(--on-error-container); }
+.xi-sev.high { background: rgba(252, 124, 120, 0.25); color: var(--sev-high); }
+.xi-sev.medium { background: rgba(185, 199, 224, 0.18); color: var(--secondary); }
+.xi-sev.low { background: var(--surface-container-highest); color: var(--on-surface-variant); }
+
+.xi-statgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.6rem; margin: 0.7rem 0; }
+.xi-statbox {
+    background: var(--surface-container);
+    border: 1px solid rgba(60, 74, 66, 0.4);
+    border-radius: var(--radius-sm);
+    padding: 0.55rem 0.7rem;
+}
+.xi-statbox .v { font-size: 0.9rem; font-weight: 700; color: var(--on-surface); margin-top: 2px; word-break: break-word; }
+
+.xi-action-box {
+    background: rgba(16, 185, 129, 0.08);
+    border-left: 3px solid var(--primary);
+    border-radius: var(--radius-sm);
+    padding: 0.65rem 0.9rem;
+    display: flex; gap: 0.7rem; align-items: flex-start;
+    margin-top: 0.5rem;
+}
+.xi-action-box .msym { color: var(--primary); font-size: 19px; margin-top: 1px; }
+.xi-action-box .txt { font-size: 0.84rem; font-style: italic; color: var(--on-surface); line-height: 1.5; }
+
+/* ── Customer insight layout ─────────────────────────────────────────────── */
+.xi-cust-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+.xi-cust-head .l { display: flex; align-items: center; gap: 0.9rem; }
+.xi-cust-head .nm {
+    font-family: 'Manrope', sans-serif; font-size: 1.35rem; font-weight: 800;
+    color: var(--on-surface); letter-spacing: -0.01em;
+}
+.xi-pill {
+    font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; font-weight: 700;
+    letter-spacing: 0.09em; text-transform: uppercase;
+    padding: 0.28rem 0.65rem; border-radius: var(--radius-sm);
+    border: 1px solid transparent;
+}
+.xi-pill.low { background: rgba(78,222,163,0.12); color: var(--primary); border-color: rgba(78,222,163,0.3); }
+.xi-pill.medium { background: rgba(185,199,224,0.12); color: var(--secondary); border-color: rgba(185,199,224,0.3); }
+.xi-pill.high, .xi-pill.critical { background: rgba(255,180,171,0.12); color: var(--error); border-color: rgba(255,180,171,0.3); }
+
+.xi-metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; padding: 0.4rem 0 0.6rem; }
+@media (max-width: 900px) { .xi-metrics { grid-template-columns: repeat(2, 1fr); } }
+.xi-metric .mv { font-family: 'Manrope', sans-serif; font-size: 1.15rem; font-weight: 800; color: var(--on-surface); margin-top: 3px; }
+
+.xi-dates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8rem; margin-top: 0.7rem; }
+@media (max-width: 900px) { .xi-dates { grid-template-columns: 1fr; } }
+.xi-datebox {
+    background: var(--surface-container-low);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-sm);
+    padding: 0.6rem 0.85rem;
+}
+.xi-datebox .dv { font-size: 0.9rem; font-weight: 600; color: var(--on-surface); margin-top: 2px; }
+
+/* ── Chat area ────────────────────────────────────────────────────────────── */
+.xi-userq {
+    display: flex; align-items: center; gap: 0.6rem;
+    background: var(--surface-container-low);
+    border: 1px solid var(--outline-variant);
+    border-left: 3px solid var(--primary);
+    border-radius: var(--radius-md);
+    padding: 0.7rem 1rem;
+    margin: 1.3rem 0 0.8rem;
+    font-size: 0.92rem; color: var(--on-surface);
+}
+.xi-userq .msym { color: var(--primary); font-size: 18px; }
+
+.xi-tool-badge {
+    display: inline-flex; align-items: center; gap: 0.45rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase;
+    font-weight: 700; padding: 0.28rem 0.65rem; border-radius: var(--radius-sm);
+    margin: 0.15rem 0 0.5rem;
+    background: rgba(78, 222, 163, 0.12); color: var(--primary);
+    border: 1px solid rgba(78, 222, 163, 0.3);
+}
+.xi-tool-badge.xi-alert {
+    background: rgba(255, 180, 171, 0.12); color: var(--error);
+    border-color: rgba(255, 180, 171, 0.3);
+}
+.xi-params { font-family: 'JetBrains Mono', monospace; font-size: 0.68rem; color: var(--outline); margin-bottom: 0.5rem; }
+
+/* Result card container */
+[class*="st-key-res_"] {
+    background: var(--surface-container-lowest) !important;
+    border: 1px solid var(--outline-variant) !important;
+    border-radius: var(--radius-lg) !important;
+    padding: 1.15rem 1.35rem !important;
 }
 
-/* ── Expander (Executive Dashboard section) ──────────────────────────────── */
-[data-testid="stExpander"] {
+/* ── Status widget ("Thinking…") ─────────────────────────────────────────── */
+[data-testid="stStatusWidget"], [data-testid="stExpander"] {
     background: var(--surface-container-lowest);
     border: 1px solid var(--outline-variant) !important;
     border-radius: var(--radius-md) !important;
-    overflow: hidden;
 }
 [data-testid="stExpander"] summary,
 [data-testid="stExpander"] summary:hover,
 [data-testid="stExpander"] summary:active,
 [data-testid="stExpander"] summary:focus,
 [data-testid="stExpander"] details[open] summary {
-    font-family: 'Manrope', sans-serif;
-    font-weight: 600;
+    font-family: 'Manrope', sans-serif; font-weight: 600;
     color: var(--on-surface);
     background: var(--surface-container-lowest) !important;
 }
-[data-testid="stExpander"] summary:hover {
-    color: var(--primary);
-}
+[data-testid="stExpander"] summary:hover { color: var(--primary); }
 
-/* ── Bottom chat bar wrapper (Streamlit renders an unlabeled white div here
-   in the fixed footer) ──────────────────────────────────────────────────── */
-[data-testid="stBottom"],
-[data-testid="stBottom"] > div,
-[data-testid="stBottomBlockContainer"] {
-    background: var(--background) !important;
-}
-[data-testid="stBottom"] {
-    border-top: 1px solid var(--outline-variant);
-}
-
-/* ── Native charts (st.bar_chart / Vega-Lite) ────────────────────────────── */
-[data-testid="stVegaLiteChart"] {
-    background: var(--surface-container-lowest);
-    border: 1px solid var(--outline-variant);
-    border-radius: var(--radius-md);
-    padding: 0.5rem;
-}
-[data-testid="stVegaLiteChart"] svg {
-    background-color: var(--surface-container-lowest) !important;
-}
-[data-testid="stVegaLiteChart"] svg rect.background {
-    fill: var(--surface-container-lowest) !important;
-}
-[data-testid="stVegaLiteChart"] text {
-    fill: var(--on-surface-variant) !important;
-}
-[data-testid="stVegaLiteChart"] .role-axis-tick line,
-[data-testid="stVegaLiteChart"] .role-axis-grid line,
-[data-testid="stVegaLiteChart"] .role-axis-domain path {
-    stroke: var(--outline-variant) !important;
-}
-
-/* ── Status widget ("Thinking...") ───────────────────────────────────────── */
-[data-testid="stStatusWidget"] {
-    background: var(--surface-container-lowest);
-    border: 1px solid var(--outline-variant);
-    border-radius: var(--radius-md);
-}
-
-/* ── Alerts (st.error / st.warning / st.info / st.success) ──────────────────
-   Approximated as left-accent alert cards, matching the Business Alerts
-   screen's severity-striped card pattern. */
+/* ── st.error / st.warning etc. as severity cards ───────────────────────── */
 .stAlert {
     background: var(--surface-container-low) !important;
     border: 1px solid var(--outline-variant) !important;
@@ -252,124 +532,53 @@ hr {
     border-radius: var(--radius-sm) !important;
 }
 
-/* ── Bordered containers (used for response + KPI cards via st.container) ─── */
-[data-testid="stVerticalBlockBorderWrapper"] {
-    border-color: var(--outline-variant) !important;
-    border-radius: var(--radius-md) !important;
-    background: var(--surface-container-lowest);
-}
-
-/* ── Markdown content emitted by tool formatters (tables, headers, lists) ── */
+/* ── Markdown fallback content (tables, headers, lists) ──────────────────── */
 .stMarkdown h2 {
-    font-size: 1.4rem !important;
+    font-size: 1.3rem !important;
     border-bottom: 1px solid var(--outline-variant);
-    padding-bottom: 0.5rem;
-    margin-bottom: 0.75rem !important;
+    padding-bottom: 0.5rem; margin-bottom: 0.75rem !important;
 }
 .stMarkdown h3 {
-    font-size: 1.1rem !important;
-    margin-top: 1.25rem !important;
-    padding-left: 0.6rem;
-    border-left: 3px solid var(--primary);
+    font-size: 1.05rem !important; margin-top: 1.2rem !important;
+    padding-left: 0.6rem; border-left: 3px solid var(--primary);
 }
-.stMarkdown strong {
-    color: var(--on-surface);
-}
+.stMarkdown strong { color: var(--on-surface); }
 .stMarkdown table {
-    width: 100%;
-    border-collapse: collapse;
+    width: 100%; border-collapse: collapse;
     border: 1px solid var(--outline-variant);
-    border-radius: var(--radius-md);
-    overflow: hidden;
+    border-radius: var(--radius-md); overflow: hidden;
 }
-.stMarkdown thead tr {
-    background: var(--surface-container-lowest);
-}
+.stMarkdown thead tr { background: var(--surface-container-lowest); }
 .stMarkdown th {
-    font-family: 'JetBrains Mono', monospace;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-size: 0.72rem;
-    color: var(--on-surface-variant);
-    text-align: left;
-    padding: 0.6rem 0.9rem;
+    font-family: 'JetBrains Mono', monospace; text-transform: uppercase;
+    letter-spacing: 0.05em; font-size: 0.68rem; color: var(--on-surface-variant);
+    text-align: left; padding: 0.6rem 0.9rem;
     border-bottom: 1px solid var(--outline-variant);
 }
 .stMarkdown td {
     padding: 0.55rem 0.9rem;
     border-bottom: 1px solid var(--outline-variant);
-    font-size: 0.9rem;
+    font-size: 0.88rem;
 }
-.stMarkdown tbody tr:hover {
-    background: var(--surface-container-low);
-}
-.stMarkdown tbody tr:last-child td {
-    border-bottom: none;
-}
+.stMarkdown tbody tr:hover { background: var(--surface-container-low); }
+.stMarkdown tbody tr:last-child td { border-bottom: none; }
 
-/* ── Custom badge / pill helpers (used only for static app chrome, never for
-   tool-result data) ─────────────────────────────────────────────────────── */
-.xi-kicker {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.72rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--primary);
-    margin-bottom: 0.35rem;
-}
+/* ── Native charts (st.bar_chart / Vega-Lite) ───────────────────────────── */
+[data-testid="stVegaLiteChart"] { background: transparent; border: none; padding: 0; }
+[data-testid="stVegaLiteChart"] svg { background-color: var(--surface-container-lowest) !important; }
+[data-testid="stVegaLiteChart"] svg rect.background { fill: var(--surface-container-lowest) !important; }
+[data-testid="stVegaLiteChart"] text { fill: var(--on-surface-variant) !important; }
+[data-testid="stVegaLiteChart"] .role-axis-tick line,
+[data-testid="stVegaLiteChart"] .role-axis-grid line,
+[data-testid="stVegaLiteChart"] .role-axis-domain path { stroke: var(--outline-variant) !important; }
+
+/* Legacy badges kept for compatibility */
 .xi-badge-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 0.75rem 0 0.25rem; }
 .xi-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.68rem;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    font-weight: 600;
-    padding: 0.3rem 0.6rem;
-    border-radius: var(--radius-sm);
-    background: rgba(78, 222, 163, 0.1);
-    color: var(--primary);
+    display: inline-flex; align-items: center; gap: 0.35rem;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.66rem;
+    letter-spacing: 0.05em; text-transform: uppercase; font-weight: 600;
+    padding: 0.3rem 0.6rem; border-radius: var(--radius-sm);
+    background: rgba(78, 222, 163, 0.1); color: var(--primary);
     border: 1px solid rgba(78, 222, 163, 0.25);
-}
-.xi-badge.xi-badge-neutral {
-    background: var(--surface-container-high);
-    color: var(--on-surface-variant);
-    border-color: var(--outline-variant);
-}
-.xi-tool-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.7rem;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    font-weight: 700;
-    padding: 0.25rem 0.6rem;
-    border-radius: var(--radius-sm);
-    margin-bottom: 0.5rem;
-    background: rgba(78, 222, 163, 0.12);
-    color: var(--primary);
-    border: 1px solid rgba(78, 222, 163, 0.3);
-}
-.xi-tool-badge.xi-alert {
-    background: rgba(255, 180, 171, 0.12);
-    color: var(--error);
-    border-color: rgba(255, 180, 171, 0.3);
-}
-
-/* ── Landing hero (AI Assistant Home) ────────────────────────────────────── */
-.xi-hero {
-    text-align: center;
-    padding: 1.5rem 0 0.5rem;
-}
-.xi-hero h1 {
-    font-size: 2.1rem !important;
-    font-weight: 700 !important;
-}
-.xi-hero p {
-    color: var(--on-surface-variant);
-    font-size: 0.95rem;
 }

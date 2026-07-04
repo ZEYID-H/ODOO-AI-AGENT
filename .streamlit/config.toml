@@ -1,0 +1,8 @@
+# Presentation-only Streamlit theme — matches the Stitch "Executive
+# Intelligence" dark design system (assets/streamlit_theme.css).
+[theme]
+base = "dark"
+primaryColor = "#4edea3"
+backgroundColor = "#101415"
+secondaryBackgroundColor = "#1d2022"
+textColor = "#e0e3e5"
