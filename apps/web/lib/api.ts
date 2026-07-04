@@ -29,6 +29,28 @@ export interface ChatResponse {
 
 class ApiError extends Error {}
 
+/** Best-effort extraction of a readable message from a non-OK response body.
+ * Handles FastAPI's validation-error shape ({"detail": [...] | "..."}) and
+ * falls back to the raw status if the body isn't JSON or doesn't match. */
+async function describeErrorResponse(res: Response, path: string): Promise<string> {
+  try {
+    const body: unknown = await res.json();
+    if (body && typeof body === "object" && "detail" in body) {
+      const detail = (body as { detail: unknown }).detail;
+      if (typeof detail === "string") return detail;
+      if (Array.isArray(detail) && detail.length > 0) {
+        const first = detail[0];
+        if (first && typeof first === "object" && "msg" in first) {
+          return String((first as { msg: unknown }).msg);
+        }
+      }
+    }
+  } catch {
+    // Body wasn't JSON (or was empty) — fall through to the generic message.
+  }
+  return `API request to ${path} failed (${res.status})`;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
@@ -42,9 +64,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     );
   }
   if (!res.ok) {
-    throw new ApiError(`API request to ${path} failed (${res.status})`);
+    throw new ApiError(await describeErrorResponse(res, path));
   }
-  return res.json() as Promise<T>;
+  try {
+    return (await res.json()) as T;
+  } catch {
+    throw new ApiError(`API response from ${path} was not valid JSON.`);
+  }
 }
 
 export function getHealth(): Promise<HealthResponse> {

@@ -14,7 +14,6 @@ export default function DashboardPage() {
   const [toolCount, setToolCount] = useState<number | null>(null);
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   // Required: the frontend calls /health and /tools on load, and /chat on
   // every question — all three FastAPI endpoints, no tool logic duplicated.
@@ -29,30 +28,29 @@ export default function DashboardPage() {
   }, []);
 
   async function handleAsk(query: string) {
-    setError(null);
+    // Guards against both a double-submit race (rapid double-click/Enter
+    // before the disabled prop re-renders) and an empty/whitespace-only
+    // message reaching the API, independent of ChatInput's own check.
+    const trimmed = query.trim();
+    if (loading || !trimmed) return;
+
     const history = buildLightweightHistory(turns);
-    setTurns((prev) => [...prev, { role: "user", content: query }]);
+    setTurns((prev) => [...prev, { role: "user", content: trimmed }]);
     setLoading(true);
     try {
-      const response = await chat(query, history);
+      const response = await chat(trimmed, history);
       setTurns((prev) => [
         ...prev,
-        {
-          role: "assistant",
-          content: response.result,
-          tool: response.success ? response.tool : null,
-        },
+        response.success
+          ? { role: "assistant", content: response.result, tool: response.tool }
+          : { role: "assistant", content: response.result, tool: null, isError: true },
       ]);
-      if (!response.success) {
-        setError("The assistant reported a problem processing that request.");
-      }
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : "Unexpected error contacting the API.";
-      setError(message);
       setTurns((prev) => [
         ...prev,
-        { role: "assistant", content: `⚠️ ${message}`, tool: null },
+        { role: "assistant", content: message, tool: null, isError: true },
       ]);
     } finally {
       setLoading(false);
@@ -65,10 +63,7 @@ export default function DashboardPage() {
         status={status}
         toolCount={toolCount}
         onAsk={handleAsk}
-        onClear={() => {
-          setTurns([]);
-          setError(null);
-        }}
+        onClear={() => setTurns([])}
         disabled={loading}
       />
 
@@ -83,15 +78,7 @@ export default function DashboardPage() {
           )}
 
           {loading && (
-            <div className="text-sm text-ink-dim animate-pulse">
-              Thinking…
-            </div>
-          )}
-
-          {error && (
-            <div className="rounded-lg border border-danger/40 bg-danger/10 px-4 py-2 text-sm text-danger">
-              {error}
-            </div>
+            <div className="text-sm text-ink-dim animate-pulse">Thinking…</div>
           )}
         </main>
 

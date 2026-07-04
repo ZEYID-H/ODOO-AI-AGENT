@@ -18,6 +18,8 @@ export interface ChatTurn {
   role: Role;
   content: string;
   tool?: string | null;
+  /** True for a failed request/response — lets ResponseCard style it distinctly. */
+  isError?: boolean;
 }
 
 /** The lightweight shape sent to the API — matches apps/api ChatMessage. */
@@ -26,8 +28,18 @@ export interface HistoryMessage {
   content: string;
 }
 
-export function buildLightweightHistory(turns: ChatTurn[]): HistoryMessage[] {
-  return turns.map((turn) => {
+/** Bounds how much history is ever sent per request. Unbounded history would
+ * grow every LLM call's payload (and cost/latency) as a session gets long;
+ * only the most recent turns are needed to resolve short-term references
+ * like "show unpaid invoices too". */
+export const MAX_HISTORY_TURNS = 12;
+
+export function buildLightweightHistory(
+  turns: ChatTurn[],
+  maxTurns: number = MAX_HISTORY_TURNS
+): HistoryMessage[] {
+  const recent = maxTurns > 0 ? turns.slice(-maxTurns) : turns;
+  return recent.map((turn) => {
     if (turn.role === "assistant" && turn.tool) {
       return { role: "assistant", content: `(Provided ${turn.tool} results.)` };
     }

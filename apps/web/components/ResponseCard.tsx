@@ -15,6 +15,20 @@ export default function ResponseCard({ turn }: { turn: ChatTurn }) {
     );
   }
 
+  if (turn.isError) {
+    return (
+      <div className="flex justify-start">
+        <div
+          role="alert"
+          className="max-w-[85%] w-full rounded-xl border border-danger/40 bg-danger/10 px-4 py-3"
+        >
+          <div className="text-xs font-medium text-danger mb-1">⚠️ Error</div>
+          <div className="text-sm text-danger">{turn.content}</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex justify-start">
       <div className="max-w-[85%] w-full rounded-xl border border-line bg-surface-2 px-4 py-3">
