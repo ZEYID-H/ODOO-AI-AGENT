@@ -1,0 +1,22 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* Dark palette — matches the existing Streamlit prototype's theme
+   (assets/streamlit_theme.css / .streamlit/config.toml) for visual
+   consistency between both front ends. Tailwind v4 CSS-first config:
+   these generate bg-surface, text-ink, border-line, etc. utility classes. */
+@theme {
+  --color-surface: #101415;
+  --color-surface-2: #1d2022;
+  --color-accent: #4edea3;
+  --color-ink: #e0e3e5;
+  --color-ink-dim: #9aa0a3;
+  --color-line: #2a2e30;
+  --color-danger: #ef5b5b;
+  --color-warn: #e2a33d;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-ink);
+}

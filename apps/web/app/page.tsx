@@ -1,0 +1,47 @@
+import Link from "next/link";
+
+const BADGES = ["Read Only", "Secure", "Odoo Connected", "GPT Powered"];
+
+export default function Home() {
+  return (
+    <main className="min-h-screen flex flex-col items-center justify-center px-6">
+      <div className="max-w-xl w-full text-center space-y-6">
+        <div>
+          <h1 className="text-3xl font-semibold text-ink">
+            Odoo Business Intelligence Assistant
+          </h1>
+          <p className="mt-2 text-ink-dim">
+            Read-only AI assistant for business analytics and reporting
+          </p>
+        </div>
+
+        <div className="flex flex-wrap justify-center gap-2">
+          {BADGES.map((b) => (
+            <span
+              key={b}
+              className="text-xs px-3 py-1 rounded-full border border-line bg-surface-2 text-ink-dim"
+            >
+              ✅ {b}
+            </span>
+          ))}
+        </div>
+
+        {/*
+          Placeholder entry point — no real authentication yet.
+          Phase 8E adds a proper login gate (single shared password) in
+          front of this route; today it links straight through.
+        */}
+        <Link
+          href="/dashboard"
+          className="inline-block mt-4 px-6 py-3 rounded-lg bg-accent text-surface font-medium hover:opacity-90 transition"
+        >
+          Enter Dashboard →
+        </Link>
+
+        <p className="text-xs text-ink-dim pt-4">
+          Personal-use preview — access control coming in a later phase.
+        </p>
+      </div>
+    </main>
+  );
+}
