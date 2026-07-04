@@ -1,0 +1,8 @@
+# FastAPI backend layer (apps/api). Separate from requirements.txt so the
+# Streamlit prototype's dependency set stays untouched.
+-r requirements.txt
+
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+httpx>=0.27.0
+pytest>=8.0.0
