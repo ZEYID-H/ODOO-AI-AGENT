@@ -1,18 +1,19 @@
 # Delivery Management Module — Plan (Documentation-Only Phase)
 
 **Status:** Planned, not implemented. Nothing in this document exists in code yet.
-**Governing documents:** `docs/NEXT_PHASES.md`, `docs/SAAS_MIGRATION_PLAN.md`, and the
-project's phase-gate workflow (plan → approval → one module per phase → stop on
-architectural surprises). This plan was requested under the name
-`docs/PROJECT_DEVELOPMENT_GUIDE.md`; no file by that name exists in the repo, so the
-documents above are the effective governing references.
+**Governing document:** `docs/PROJECT_DEVELOPMENT_GUIDE.md` — the single source of
+truth for architecture boundaries, module ownership, the planning-gate workflow, the
+MVP First principle, validation standards, and the phase report format. This plan
+applies that guide to one module; where anything here conflicts with the guide, the
+guide wins.
 
 **Supersession note:** `docs/NEXT_PHASES.md` lists "user roles / permissions tiers" and
-"admin dashboard" under *What should NOT be built yet*, gated on real user accounts
-existing first. This module deliberately pulls both forward — and pulls the real-accounts
-prerequisite (NEXT_PHASES item 2) forward with them, as the first phase (D1). That
-supersession is approved as part of this plan; `NEXT_PHASES.md` itself is intentionally
-left unedited in this documentation-only phase and should be reconciled when D1 lands.
+"admin dashboard" under *What should NOT be built yet*. This module supersedes those
+entries with approval — but in the smallest possible increments: D1 introduces roles as
+a session-level concept only (no new account system, no schema change), and real
+per-driver accounts arrive only at the phase where data ownership actually requires
+them (D2). `NEXT_PHASES.md` is left unedited as history; governance now lives in the
+guide (see its Document Map).
 
 ---
 
@@ -38,6 +39,28 @@ authentication + UI + persistence feature; every capability it needs already liv
 (`lib/session-guard.ts`), Prisma/SQLite persistence (`prisma/schema.prisma`), and the
 Docker volume (`conversations-data:/data`). It involves zero AI routing, zero Odoo data,
 and zero business analytics, so `src/`, `app.py`, and `apps/api` do not participate.
+
+---
+
+## MVP First (guiding principle for every Delivery phase)
+
+Every Delivery phase solves **one operational problem only**. The operational problem
+of this module is: *delivered-invoice photos are scattered across WhatsApp with no
+status, no ownership, and no review trail.* Nothing gets built that doesn't directly
+serve that problem.
+
+- Never build future architecture before it becomes necessary. No user-management
+  system, no organizations, no permission matrix, no invitation flows, no speculative
+  schema fields "for later."
+- Prefer **evolutionary architecture over speculative architecture**: each phase makes
+  the smallest change that solves its problem while not blocking the next phase.
+  "Doesn't block later" is the bar — not "already supports later."
+- Concretely for this module: roles arrive before accounts (D1 needs to *gate routes*,
+  not manage users); per-driver identity arrives only when proof ownership needs it
+  (D2); storage stays on the existing volume until scale forces object storage;
+  OCR stays on paper (D6) until the manual workflow proves what extraction is worth.
+- If a phase's scope grows a second problem, split it — per the governing guide's
+  planning gate.
 
 ---
 
@@ -69,23 +92,35 @@ extended to `requireRole()`), and every server action independently re-checks ro
 ownership — server actions are directly invokable endpoints, so page gates alone protect
 nothing.
 
-**Prerequisite folded into this module (D1):** today the app has exactly one shared
-password (`APP_ACCESS_PASSWORD` in `lib/auth-credentials.ts`) producing one synthetic
-`personal-user`. A driver cannot "log in and see only a driver portal" if everyone logs
-in with the same password. D1 therefore includes a *minimal* real-user credential model:
-`username`, `passwordHash`, `role`, `name` on the existing `User` table — which
-`prisma/schema.prisma` was explicitly designed to absorb ("swapping in real multi-user
-auth later only means adding fields here"). This is the riskiest part of the module and
-is scoped first, alone.
+**How roles arrive without a new account system (evolutionary, per MVP First):**
+today the app has exactly one shared password (`APP_ACCESS_PASSWORD` in
+`lib/auth-credentials.ts`) producing one synthetic `personal-user`. D1 extends this
+pattern minimally instead of replacing it: a **second shared access password**
+(`DRIVER_ACCESS_PASSWORD`) maps to a synthetic driver identity with role `DRIVER`,
+while the existing password keeps mapping to the owner identity with role `OWNER`.
+The login form stays exactly as it is (one password field — no username, no rewrite),
+Auth.js wiring stays as it is, and **no database change is needed in D1 at all**: the
+role is decided at login and carried in the JWT/session callbacks that `auth.ts` was
+explicitly designed to absorb.
+
+**Where per-driver identity arrives instead:** a shared driver password means drivers
+are indistinguishable from each other — fine for D1 (which only gates routes), not
+fine once proofs need an owner ("driver sees only their own uploads"). That boundary
+is `DeliveryProof.driverId` in D2, so D2 is where the *smallest sufficient* per-driver
+identity step is taken (expected: the existing `User` model gains `role` plus minimal
+credential fields — the schema was designed so this is additive). D2 decides that
+design; D1 deliberately does not.
 
 **Known limitation to document, not solve:** sessions are stateless JWTs
 (`session: { strategy: "jwt" }` in `auth.ts`), so changing or revoking a user's role
 does not take effect until their token expires. MVP mitigation: modest session maxAge
 and a documented re-login requirement. Token revocation is out of scope.
 
-**Related fix required in D1:** the login rate limiter (`lib/login-rate-limit.ts`) is
-currently global. With multiple driver accounts, one driver's failed attempts would lock
-out everyone including the owner — it must become per-username.
+**Known limitation (deferred):** the login rate limiter (`lib/login-rate-limit.ts`)
+is global. With two shared passwords this matches today's behavior; once real
+per-driver accounts exist (D2+), it should become per-username so one driver's failed
+attempts can't lock out everyone. Deferred to the phase that introduces those
+accounts.
 
 ---
 
@@ -196,10 +231,12 @@ Indexes:
 - `invoiceNumber` (admin lookup)
 - `uploadedAt` (date filtering)
 
-`User` additions (D1, drafted here for completeness): `role`, `username` (unique),
-`passwordHash`, `name`. All types stay Postgres-portable (strings, DateTime, cuid ids)
-per the schema's existing design contract. `Conversation`/`Message` and
-`app/actions/conversations.ts` are not restructured.
+`User` additions: **none in D1** (roles are session-level; no schema change). At D2,
+when `DeliveryProof.driverId` makes per-driver identity necessary, the existing `User`
+model gains the smallest sufficient fields — expected `role` plus minimal credential
+fields, decided and approved at D2. All types stay Postgres-portable (strings,
+DateTime, cuid ids) per the schema's existing design contract. `Conversation`/`Message`
+and `app/actions/conversations.ts` are not restructured, ever, by this module.
 
 ---
 
@@ -271,9 +308,10 @@ All of the following are hard requirements, not aspirations:
 - No secrets in frontend code or in the client bundle.
 - No trust in client-provided `userId` — ever. All user identity comes from the
   server session (`auth()`), exactly as `app/actions/conversations.ts` already does.
-- Per-username login rate limiting (replacing today's global limiter) so one account's
-  failures cannot deny service to others.
-- Seed/owner credentials arrive via environment variables (documented in
+- Per-username login rate limiting once real per-driver accounts exist (D2+), so one
+  account's failures cannot deny service to others; until then the existing global
+  limiter's behavior is unchanged.
+- Access credentials arrive via environment variables (documented in
   `.env.docker.example` with placeholder values only) — never committed.
 
 ---
@@ -282,7 +320,8 @@ All of the following are hard requirements, not aspirations:
 
 **Included:**
 
-- Role foundation (OWNER / DRIVER, minimal real user accounts)
+- Role foundation (OWNER / DRIVER — session-level in D1; minimal per-driver identity
+  when D2's data ownership requires it)
 - DRIVER route (`/driver`) with server-side gating
 - Driver-only, mobile-first upload page
 - Upload invoice photo with validation
@@ -322,68 +361,77 @@ and green.
 
 ### D1 — Role Foundation
 
-**Goal:** Add role support for OWNER and DRIVER, backed by minimal real user accounts.
+**Goal:** Introduce OWNER and DRIVER roles only — the minimum role foundation the
+Driver Portal requires. D1 is NOT a user-management phase.
 
-**Scope:**
-- Extend `User` with `role`, `username`, `passwordHash`, `name` (+ migration)
-- Username + password login (bcrypt/argon2) replacing the shared password
-- Seed owner account from env; minimal mechanism to create driver accounts (seed
-  script or owner-only action is acceptable for MVP)
-- Role into JWT/session callbacks; `requireRole()` guard
-- Protect `/dashboard` from DRIVER
-- Create empty `/driver` protected route (placeholder — no uploads yet)
-- Owner/admin keeps current dashboard access unchanged
-- Per-username login rate limiting
-- Owner-gate the existing API-token minting action
+**Scope (smallest safe architectural change):**
+- Add role support: `DRIVER_ACCESS_PASSWORD` env var; `attemptLogin()` maps the
+  existing password → role `OWNER`, the new password → role `DRIVER` (existing
+  Auth.js foundation extended, not replaced; login form and flow unchanged)
+- Role into the existing JWT/session callbacks; `requireRole()` alongside
+  `requireSession()`
+- Protect `/dashboard` from DRIVER (server-side redirect)
+- Create protected `/driver` page (placeholder with logout — no uploads yet)
+- Redirect DRIVER away from admin pages generally: role-aware post-login/root
+  redirect, and a role check on the existing API-token minting action so a DRIVER
+  session cannot mint a token and reach the AI endpoints
+- **No Prisma change. No migration. No login rewrite. No new accounts.**
 
-**Out of scope:** image upload, DeliveryProof model, OCR, admin review, any driver UI
-beyond the placeholder.
+**Out of scope:** upload, DeliveryProof model, OCR, user management, organizations,
+permissions matrix, admin UI, analytics, per-driver identity (D2), password reset,
+profile management, rate-limiter changes.
 
-**Likely files:**
-- `apps/web/prisma/schema.prisma` + migration (User fields only)
-- `apps/web/auth.ts`
-- `apps/web/lib/auth-credentials.ts`
-- `apps/web/lib/login-rate-limit.ts`
-- `apps/web/lib/session-guard.ts`
-- `apps/web/types/next-auth.d.ts` (session type augmentation)
-- `apps/web/app/dashboard/page.tsx`
-- `apps/web/app/driver/page.tsx` + `layout.tsx` (new)
-- `apps/web/app/login/page.tsx`, `apps/web/components/LoginForm.tsx` (username field)
-- `apps/web/app/page.tsx` (role-aware root redirect)
-- `apps/web/.env.docker.example`
-- `apps/web/tests/*` (updated: auth-credentials, login-rate-limit, session-guard,
-  LoginForm, login-action; new: role-guard)
+**Likely files (all in `apps/web`):**
+- `auth.ts` (role in the two existing callbacks)
+- `lib/auth-credentials.ts` (second password → role mapping; same pure-function shape)
+- `lib/session-guard.ts` (`requireRole()`)
+- `types/next-auth.d.ts` (session type gains `role`)
+- `app/dashboard/page.tsx` (guard swap: `requireRole("OWNER")`)
+- `app/driver/page.tsx` + `layout.tsx` (new, minimal)
+- `app/page.tsx` (role-aware redirect)
+- `.env.docker.example` (placeholder for the new env var)
+- `tests/*` (updated: auth-credentials, session-guard; new: role-guard)
 
 **Validation:**
 - OWNER can access dashboard (full existing flow unchanged end-to-end)
 - DRIVER cannot access dashboard (direct URL → redirect, no dashboard bytes served)
-- DRIVER can access `/driver`
-- DRIVER invoking an owner-only server action directly → rejected
+- DRIVER can access `/driver`; unauthenticated `/driver` request → login
+- DRIVER cannot mint an API token
 - Unauthenticated users redirect to login
 - `npm run lint` / `build` / `test`
 - Docker runtime login check for both roles
 
-**Stop condition:** If role handling requires a major auth redesign (e.g. Auth.js
-forces a database adapter or changes beyond `auth.ts`/`auth-credentials.ts`), stop and
-ask before proceeding.
+**Stop condition:** If role handling turns out to require a schema change, a login
+rewrite, or any auth redesign beyond the files above, stop and ask before proceeding.
 
 ---
 
 ### D2 — Delivery Proof Data Model
 
-**Goal:** Add persistence for delivery proof metadata (before any file handling).
+**Goal:** Add persistence for delivery proof metadata (before any file handling) —
+including the smallest per-driver identity step that proof ownership forces.
 
 **Scope:**
 - `DeliveryProof` Prisma model (§5) + migration
+- **Minimal per-driver identity** (moved here from D1, because `driverId` is the
+  first thing that actually needs it): the existing `User` model gains a `role`
+  field plus the smallest credential mechanism that lets individual drivers be told
+  apart — expected `username` + `passwordHash`, decided and approved at this phase's
+  own planning gate. Not a user-management system: no invitations, no reset, no
+  profiles, no admin UI. If D2's gate concludes ownership can be established even
+  more simply, prefer that.
 - Basic server actions: create (metadata-only), list (driver-scoped and owner-scoped),
   update status (verify/reject)
 - Ownership checks inside every action
 
 **Out of scope:** actual image upload (storage not wired yet — `imagePath` stays
-nullable until D3), OCR, Odoo matching, any UI change.
+nullable until D3), OCR, Odoo matching, any UI change beyond what login strictly
+needs if credentials change shape, user management of any kind.
 
 **Likely files:**
 - `apps/web/prisma/schema.prisma` + migration
+- `apps/web/lib/auth-credentials.ts` (only if the credential mechanism changes here)
+- `apps/web/lib/login-rate-limit.ts` (per-username keying arrives with real accounts)
 - `apps/web/app/actions/delivery-proofs.ts` (new)
 - `apps/web/tests/delivery-proofs.test.ts` (new)
 
@@ -395,9 +443,9 @@ nullable until D3), OCR, Odoo matching, any UI change.
 - `prisma migrate` / `prisma generate` clean
 - `npm test`
 
-**Stop condition:** If the schema conflicts with future object-storage needs or
-requires anything SQLite-specific / non-Postgres-portable, stop and document before
-continuing.
+**Stop condition:** If the schema conflicts with future object-storage needs, requires
+anything SQLite-specific / non-Postgres-portable, or the identity step grows beyond
+"User gains role + minimal credentials," stop and document before continuing.
 
 ---
 
@@ -489,8 +537,8 @@ simple cap (noted as future work, like the conversations sidebar).
   (`down` without `-v`, then `up`) → confirm image and DB record remain
 - Validate role gates against the running containers (driver blocked from
   `/dashboard`, from raw owner server-action calls, and from others' image URLs)
-- Validate per-username rate limiting inside Docker
-- Validate seed-owner env wiring from `.env.docker`
+- Validate login rate limiting inside Docker (per-username if D2 introduced it)
+- Validate role/credential env wiring from `.env.docker`
 
 **Out of scope:** deployment to cloud; any new feature code (only fixes for issues
 this validation surfaces, staying within Module D files).
