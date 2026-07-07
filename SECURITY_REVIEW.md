@@ -1,6 +1,11 @@
 # Security Review — Odoo Read-Only Integration
 
-**Scope:** the AI agent's access to Odoo ERP.
+**Scope:** the AI agent's access to Odoo ERP — deliberately narrow. For the
+web/API layer's own security posture (login, sessions, request-size and
+rate limiting, CORS, container hardening), see
+[`docs/AUTH_AND_PERSISTENCE.md`](docs/AUTH_AND_PERSISTENCE.md),
+[`docs/API_CONTRACT.md`](docs/API_CONTRACT.md), and the full audit at
+[`docs/AUDIT_PHASE_9.md`](docs/AUDIT_PHASE_9.md).
 **Classification:** READ-ONLY system. The agent is an **ERP Analyst**, never an
 **ERP Operator**.
 **Status:** security layer implemented, tested, and in continuous use — the

@@ -164,6 +164,22 @@ already-documented tradeoff (full `node_modules`, not a pruned
 "standalone" build, because the Prisma CLI needs its full dependency tree
 to run `migrate deploy` against the mounted volume at startup).
 
+**Capability dropping** (`docker-compose.saas.yml`): both services set
+`cap_drop: [ALL]` and `security_opt: [no-new-privileges:true]`. Since both
+processes already run as non-root and only bind unprivileged ports, this
+costs nothing functionally — verified directly, not assumed, including
+tracking down a real false alarm: a *pre-existing* `conversations-data`
+volume (populated back when this stack still ran as root) had some
+root-owned files that the now-non-root `node` user couldn't write to,
+which looked at first like `cap_drop` breaking Prisma migrations. It
+wasn't — a completely fresh volume applies the same migration cleanly
+under the identical `cap_drop: ALL` restriction; the old volume's leftover
+ownership was the actual cause (see Troubleshooting below for the fix, or
+just `docker compose down -v` on a stack you don't need to keep data in).
+`chown` itself requires `CAP_CHOWN` even as root, so fixing an
+already-broken volume needs a one-off container run *without* the
+capability restriction (see Troubleshooting).
+
 ---
 
 ## Environment variables reference
@@ -174,6 +190,7 @@ to run `migrate deploy` against the mounted volume at startup).
 | `OPENAI_MODEL` | api | `.env` | Optional, defaults to `gpt-4o-mini` |
 | `DATA_BACKEND` | api | `.env` | `mock` (default) or `odoo` |
 | `ODOO_URL`, `ODOO_DB`, `ODOO_USERNAME`, `ODOO_PASSWORD`, `EXPECTED_ODOO_USER` | api | `.env` | Only needed when `DATA_BACKEND=odoo` |
+| `CORS_ALLOWED_ORIGINS` | api | `.env` | Optional, comma-separated, defaults to `http://localhost:3000` |
 | `NEXT_PUBLIC_API_BASE_URL` | web (build arg) | shell env or defaults to `http://localhost:8000` | Baked into the browser bundle — must be host-reachable, not a compose service name |
 | `DATABASE_URL` | web | `docker-compose.saas.yml` | Points at the mounted volume: `file:/data/conversations.db` |
 | `AUTH_TRUST_HOST` | web | `docker-compose.saas.yml` | Must be `true` in this container — Auth.js's automatic dev-mode host trust doesn't apply once `NODE_ENV=production` |
@@ -221,3 +238,20 @@ to run `migrate deploy` against the mounted volume at startup).
   failures within 60 seconds — including from the login form itself
   retrying. Wait a minute, or restart the `web` container to clear the
   in-memory counter immediately. See `docs/AUTH_AND_PERSISTENCE.md`.
+- **`/chat` starts returning 429**: the global rate limiter allows 30
+  requests/60s (`docs/API_CONTRACT.md`). Wait a minute, or restart `api`
+  to clear the in-memory counter immediately.
+- **`web` crash-loops with `Error: SQLite database error / attempt to
+  write a readonly database` after adding a new Prisma migration**: this
+  happened once during Phase 9's own follow-up work, on a
+  `conversations-data` volume that had existed since before this stack ran
+  as a non-root user — some files inside it were still root-owned, and the
+  non-root `node` user could read but not write them (the Dockerfile's
+  `chown` only affects the image's mount point, not a pre-existing
+  volume's actual contents). Fix: `docker run --rm --user root
+  --entrypoint "" -v odoo-ai-agent_conversations-data:/data
+  odoo-ai-agent-web sh -c "chown -R node:node /data"` (adjust the volume
+  name — check with `docker volume ls`), then restart normally. A brand
+  new volume never hits this; it inherits correct ownership automatically
+  (verified directly: a fresh volume applied the same migration cleanly
+  under the same `cap_drop: ALL` restriction below).

@@ -40,6 +40,15 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    # Light container hardening (Phase 9 follow-up): both processes run as
+    # non-root (see the Dockerfiles) and bind only to unprivileged ports,
+    # so dropping every Linux capability and blocking privilege escalation
+    # costs nothing functionally — verified by rebuilding and re-running
+    # the full login/dashboard/chat/persistence flow with these applied.
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
   web:
     build:
@@ -72,6 +81,10 @@ services:
       api:
         condition: service_healthy
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   # Survives `docker compose down` (only `down -v` removes it) — this is

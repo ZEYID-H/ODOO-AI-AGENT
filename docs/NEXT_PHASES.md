@@ -1,13 +1,18 @@
 # Next Phases — Recommendations and Risks
 
-**Status as of Phase 9:** the SaaS migration (Streamlit prototype →
-Next.js + FastAPI + Docker Compose, with login and per-user conversation
-persistence) is functionally complete and locally validated; Phase 9 was a
-production-readiness audit that fixed the Critical/High findings in place
-(see `docs/AUDIT_PHASE_9.md`) rather than adding features. What follows is
-a forward-looking recommendation, not a commitment — nothing here is
-scheduled or approved. See `docs/SAAS_MIGRATION_PLAN.md` §11 for what was
-actually built through Phase 8H and any deviations from the original plan.
+**Status as of the Phase 9 follow-up:** the SaaS migration (Streamlit
+prototype → Next.js + FastAPI + Docker Compose, with login and per-user
+conversation persistence) is functionally complete and locally validated;
+Phase 9 was a production-readiness audit that fixed the Critical/High
+findings in place (see `docs/AUDIT_PHASE_9.md`). A follow-up pass then
+implemented most of the previously-documented-only Medium/Low findings
+too: CORS is now configurable, `/chat` is now rate-limited by frequency
+(not just size), baseline security headers were added, a CI workflow now
+runs the full validation suite on every push, and containers now drop all
+Linux capabilities. What follows is a forward-looking recommendation, not
+a commitment — nothing here is scheduled or approved. See
+`docs/SAAS_MIGRATION_PLAN.md` §11 for what was actually built through
+Phase 8H and any deviations from the original plan.
 
 This document exists so the next decision — "what do we build next" — is
 made deliberately, informed by what's genuinely missing, rather than by
@@ -17,10 +22,8 @@ momentum.
 
 ## Recommended next phases (roughly in order)
 
-1. **Automated CI** — run the existing validation suite (`npm run
-   lint/build/test`, `pytest apps/api/tests`, `pytest tests/`, `py_compile`)
-   on every push/PR. Nothing here requires new test-writing — the suites
-   already exist and pass locally; this is wiring, not development.
+1. ~~**Automated CI**~~ — done: `.github/workflows/ci.yml` runs
+   `npm run lint/build/test` and `pytest`/`py_compile` on every push/PR.
 2. **Real user accounts** — replace the single shared password
    (`APP_ACCESS_PASSWORD`) with actual per-user credentials. The codebase
    is already shaped for this: `lib/auth-credentials.ts`'s `authorize()`
@@ -33,10 +36,10 @@ momentum.
    not a data-model change. Needed before any deployment with more than one
    running instance of `apps/web` (SQLite files don't coordinate across
    processes/containers).
-4. **Rate limiting on `/chat`** (API cost control — call *frequency*, not
-   just per-request size, which Phase 9 already bounds). Login brute-force
-   protection was added in Phase 9, but only as an in-memory,
-   single-process limiter — revisit if this is ever horizontally scaled.
+4. ~~**Rate limiting on `/chat`**~~ — done: capped at 30 requests/60s,
+   globally (same in-memory, per-process, single-instance-only limitation
+   as the login limiter — revisit both together if this is ever
+   horizontally scaled).
 5. **Structured logging / monitoring** for `apps/web` and `apps/api`
    (request logs, error tracking) — today, errors are caught and hidden
    from the client (correctly, for security) but not captured anywhere
@@ -99,13 +102,16 @@ running on my machine" and becomes something other people log into.
 |---|---|---|
 | **`apps/api` has no authentication of its own** | Every endpoint (`/chat` included) trusts any caller who can reach it — `apps/web`'s login gate is the *only* access control in the whole system. Fine when both are reached only via `127.0.0.1` on one machine (Phase 9 restricted `docker-compose.saas.yml`'s port bindings to loopback specifically because of this — see `docs/DOCKER_SAAS_STACK.md`); would need real inter-service auth (a shared secret header, mTLS, or network-level isolation) before `apps/api` could ever be reachable from anywhere but the same host as `apps/web`. Deliberately not attempted as a quick audit-phase patch — it's a design decision, not a bug fix. | `docs/API_CONTRACT.md`, `docs/AUDIT_PHASE_9.md` |
 | Single shared password | Anyone who has it has full access to everything; no per-user isolation, no revocation without changing the password for everyone | `docs/AUTH_AND_PERSISTENCE.md` |
-| Login rate limiting is per-process, not distributed | Phase 9 added brute-force protection (5 attempts/60s, enforced in `authorize()` — closes both the login form and Auth.js's raw credentials-callback route), but it's in-memory: resets on restart, doesn't coordinate across multiple instances | `docs/AUTH_AND_PERSISTENCE.md` |
-| No rate limiting on `/chat` | An authenticated session can call it unboundedly — unbounded OpenAI spend per session (request *size* is capped since Phase 9, but not call frequency) | `docs/API_CONTRACT.md` |
+| Login *and* `/chat` rate limiting are per-process, not distributed | Both are now enforced (5 login attempts/60s in `authorize()`; 30 `/chat` calls/60s in `apps/api/main.py`), but both are in-memory: resets on restart, doesn't coordinate across multiple instances | `docs/AUTH_AND_PERSISTENCE.md`, `docs/API_CONTRACT.md` |
 | SQLite under concurrent load | File-based SQLite does not safely coordinate writes across multiple processes/instances the way a real production database needs to | `docs/AUTH_AND_PERSISTENCE.md` |
 | Secrets in plain `.env` files | Fine for local dev; not an acceptable secrets story for a real deployment (no rotation, no access control, easy to leak via a misconfigured `.dockerignore`/`.gitignore`) | `docs/DOCKER_SAAS_STACK.md` |
 | No monitoring/alerting | A production outage or a runaway OpenAI cost would currently be discovered by a user complaining, not by the system telling anyone | this document, §"Recommended next phases" |
-| CORS hardcoded to `localhost:3000` | Correct for local dev; must be revisited for any real domain before launch, or every browser request to `/chat`/`/tools` will be blocked | `docs/API_CONTRACT.md` |
 | Odoo read-only guarantee under new load patterns | Not weakened by anything in this migration (verified per-phase via `git diff --stat -- src/` staying empty and `tests/test_security.py` passing unchanged) — but worth re-verifying against real production traffic patterns before trusting it at scale | `SECURITY_REVIEW.md` |
+
+Resolved since the table above was first written: CORS is now
+configurable (`CORS_ALLOWED_ORIGINS`, defaults to `localhost:3000`), and
+baseline security headers (`X-Frame-Options`, `X-Content-Type-Options`,
+`Referrer-Policy`) are now set on every `apps/web` response.
 
 None of these are urgent for continued personal/internal use of either
 front end. They become urgent the moment "who can log in" expands beyond

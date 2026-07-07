@@ -130,15 +130,38 @@ how this interacts with database-reloaded conversation history.
 - **Network-level failure** (API unreachable at all): the frontend never
   gets an HTTP response — `lib/api.ts` wraps the fetch failure in
   `ApiError("Could not reach the API. Is the backend running at ...")`.
+- **Rate limited**: `429` with `{"detail": "Too many requests. Please wait
+  a moment and try again."}` after 30 requests within a rolling 60-second
+  window, enforced globally (see below). `lib/api.ts`'s existing `detail`
+  parsing surfaces this message without any frontend changes.
 
 ---
 
 ## CORS
 
-`apps/api/main.py` configures `CORSMiddleware` explicitly for
-`http://localhost:3000` (`GET`, `POST` only) — not left wildcard-open. If
-you serve `apps/web` from a different origin (a different port, a real
-domain), this list must be updated; nothing else about the API changes.
+`apps/api/main.py` configures `CORSMiddleware` for the origins listed in
+`CORS_ALLOWED_ORIGINS` (comma-separated env var, defaults to
+`http://localhost:3000`) — `GET`/`POST` only, never wildcard-open. Made
+configurable, rather than hardcoded, specifically so serving `apps/web`
+from a different origin (a different port, a real domain) is a
+configuration change, not a code change.
+
+---
+
+## Rate limiting on `/chat`
+
+Global (not per-caller — this API has no concept of "who is asking," see
+below), in-memory sliding window: max 30 requests per rolling 60 seconds.
+Exceeding it returns `429` (see Error behavior above). This closes the
+*frequency* gap deliberately left open when request *size* was bounded —
+an authenticated `apps/web` session (or, since this API has no auth of its
+own, literally anyone who can reach it) could otherwise call `/chat` as
+fast as the network allows, each call costing a real OpenAI request.
+
+**Known limitation, stated plainly**: this state is in-memory and
+per-process — resets on restart, doesn't coordinate across multiple
+instances. Same limitation, same reasoning, as `apps/web`'s login rate
+limiter (`docs/AUTH_AND_PERSISTENCE.md`).
 
 ---
 

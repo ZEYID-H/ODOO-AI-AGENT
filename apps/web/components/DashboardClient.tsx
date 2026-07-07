@@ -19,7 +19,18 @@ import {
 } from "@/app/actions/conversations";
 
 function toTurns(messages: PersistedMessage[]): ChatTurn[] {
-  return messages.map((m) => ({ role: m.role, content: m.content }));
+  return messages.map((m) => ({ id: m.id, role: m.role, content: m.content }));
+}
+
+/** Stable id for a freshly-added turn (not yet persisted / no db id yet).
+ * Previously ResponseCard was keyed on array index (Phase 9 audit finding:
+ * a recognized React anti-pattern) even though a real id was available for
+ * every reloaded message — this closes the gap for locally-created turns
+ * too, so every turn has a real, stable key regardless of origin. */
+function newTurnId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `turn-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 /** Reflects a server-side title/updatedAt change into the locally-held list
@@ -75,15 +86,15 @@ export default function DashboardClient({
     if (loading || switching || !trimmed) return;
 
     const history = buildLightweightHistory(turns);
-    setTurns((prev) => [...prev, { role: "user", content: trimmed }]);
+    setTurns((prev) => [...prev, { id: newTurnId(), role: "user", content: trimmed }]);
     setLoading(true);
     try {
       const response = await chat(trimmed, history);
       setTurns((prev) => [
         ...prev,
         response.success
-          ? { role: "assistant", content: response.result, tool: response.tool }
-          : { role: "assistant", content: response.result, tool: null, isError: true },
+          ? { id: newTurnId(), role: "assistant", content: response.result, tool: response.tool }
+          : { id: newTurnId(), role: "assistant", content: response.result, tool: null, isError: true },
       ]);
 
       // Persist both turns of a completed round trip — including a
@@ -104,7 +115,7 @@ export default function DashboardClient({
         err instanceof ApiError ? err.message : "Unexpected error contacting the API.";
       setTurns((prev) => [
         ...prev,
-        { role: "assistant", content: message, tool: null, isError: true },
+        { id: newTurnId(), role: "assistant", content: message, tool: null, isError: true },
       ]);
     } finally {
       setLoading(false);
@@ -213,7 +224,7 @@ export default function DashboardClient({
           {turns.length === 0 ? (
             <EmptyState onAsk={handleAsk} disabled={disabled} />
           ) : (
-            turns.map((turn, i) => <ResponseCard key={i} turn={turn} />)
+            turns.map((turn, i) => <ResponseCard key={turn.id ?? i} turn={turn} />)
           )}
 
           {loading && (

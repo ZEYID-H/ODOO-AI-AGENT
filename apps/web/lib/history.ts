@@ -20,6 +20,11 @@ export interface ChatTurn {
   tool?: string | null;
   /** True for a failed request/response — lets ResponseCard style it distinctly. */
   isError?: boolean;
+  /** Stable React key — either the persisted message id (reloaded turns)
+   * or a client-generated id (freshly-sent turns). Optional only so
+   * existing call sites/tests that don't care about list identity aren't
+   * forced to supply one; DashboardClient always sets it in practice. */
+  id?: string;
 }
 
 /** The lightweight shape sent to the API — matches apps/api ChatMessage. */

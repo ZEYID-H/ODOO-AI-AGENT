@@ -8,6 +8,7 @@ must not require a live OpenAI key or Odoo connection to pass).
 """
 
 import sys
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -19,10 +20,20 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
+import apps.api.main as api_main
 from apps.api.main import app, filter_history, _OMITTED_NOTE
 from apps.api.schemas import ChatMessage, ChatRequest
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _reset_chat_rate_limit():
+    """The /chat rate limiter (module-level, global — see main.py) must not
+    leak state between tests, or earlier tests' calls would count toward
+    later tests' limits regardless of execution order."""
+    api_main._chat_request_times.clear()
+    yield
 
 
 # ── /health ───────────────────────────────────────────────────────────────
@@ -210,6 +221,48 @@ def test_chat_request_schema_rejects_too_many_history_turns():
             query="hi",
             history=[{"role": "user", "content": "x"} for _ in range(51)],
         )
+
+
+# ── /chat rate limiting by call frequency (closes the gap Phase 9's size
+#    limits deliberately left open — see main.py's comment) ────────────────
+
+def test_chat_endpoint_allows_requests_under_the_limit():
+    canned = {"tool": None, "parameters": {}, "result": "ok"}
+    with patch("apps.api.main.route_query", return_value=canned):
+        for _ in range(api_main._CHAT_RATE_LIMIT_MAX):
+            resp = client.post("/chat", json={"query": "hi"})
+            assert resp.status_code == 200
+
+
+def test_chat_endpoint_blocks_requests_once_the_limit_is_reached():
+    canned = {"tool": None, "parameters": {}, "result": "ok"}
+    with patch("apps.api.main.route_query", return_value=canned):
+        for _ in range(api_main._CHAT_RATE_LIMIT_MAX):
+            client.post("/chat", json={"query": "hi"})
+        resp = client.post("/chat", json={"query": "one too many"})
+    assert resp.status_code == 429
+    assert "too many requests" in resp.json()["detail"].lower()
+
+
+def test_chat_endpoint_rate_limit_window_expires():
+    canned = {"tool": None, "parameters": {}, "result": "ok"}
+    with patch("apps.api.main.route_query", return_value=canned):
+        for _ in range(api_main._CHAT_RATE_LIMIT_MAX):
+            client.post("/chat", json={"query": "hi"})
+        assert client.post("/chat", json={"query": "blocked"}).status_code == 429
+
+        # Simulate the window having fully elapsed rather than sleeping in
+        # a test — same approach as tests/login-rate-limit.test.ts.
+        future = time.monotonic() + api_main._CHAT_RATE_LIMIT_WINDOW_SECONDS + 1
+        with patch("time.monotonic", return_value=future):
+            resp = client.post("/chat", json={"query": "allowed again"})
+    assert resp.status_code == 200
+
+
+# ── CORS configurability (Phase 9 follow-up: previously hardcoded) ────────
+
+def test_cors_origins_default_to_localhost_3000():
+    assert api_main._cors_origins == ["http://localhost:3000"]
 
 
 if __name__ == "__main__":

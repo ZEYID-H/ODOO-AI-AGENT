@@ -14,7 +14,9 @@ Nothing in src/ is modified or duplicated here beyond the small filter below.
 """
 
 import logging
+import os
 import sys
+import time
 from pathlib import Path
 
 # Mirror the project's existing test-file pattern (see tests/test_security.py)
@@ -23,7 +25,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.agent.router import route_query
@@ -45,14 +47,47 @@ logger = logging.getLogger("apps.api")
 
 app = FastAPI(title="Odoo BI API", version="1.0.0")
 
-# Forward-compatible with the Next.js dev server (Phase 8C/8D); no frontend
-# exists yet, but CORS is configured explicitly rather than left wildcard-open.
+# CORS_ALLOWED_ORIGINS is a comma-separated list; defaults to the Next.js
+# dev/Docker origin so local usage needs zero configuration. Made
+# configurable (previously hardcoded) so a real deployment on an actual
+# domain doesn't require a code change — see docs/API_CONTRACT.md.
+_cors_origins = [
+    origin.strip()
+    for origin in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+    if origin.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=_cors_origins,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+
+# Rate limiting for /chat, by call *frequency* — Phase 9's audit added a
+# per-request *size* cap (schemas.py's max_length fields) but left
+# frequency unbounded: an authenticated apps/web session (or, since
+# apps/api has no auth of its own, literally anyone who can reach it) could
+# call /chat as fast as the network allows, each call costing a real
+# OpenAI request. Global, not per-caller, for the same reason the login
+# limiter (apps/web/lib/login-rate-limit.ts) is global: this layer has no
+# concept of "who is asking" to key on (see docs/API_CONTRACT.md). Known
+# limitation, same as that one: in-memory and per-process — resets on
+# restart, doesn't coordinate across multiple instances.
+_CHAT_RATE_LIMIT_MAX = 30
+_CHAT_RATE_LIMIT_WINDOW_SECONDS = 60.0
+_chat_request_times: list[float] = []
+
+
+def _is_chat_rate_limited(now: float | None = None) -> bool:
+    now = time.monotonic() if now is None else now
+    global _chat_request_times
+    _chat_request_times = [t for t in _chat_request_times if now - t < _CHAT_RATE_LIMIT_WINDOW_SECONDS]
+    return len(_chat_request_times) >= _CHAT_RATE_LIMIT_MAX
+
+
+def _register_chat_request(now: float | None = None) -> None:
+    _chat_request_times.append(time.monotonic() if now is None else now)
 
 
 def _looks_like_tool_output(content: str) -> bool:
@@ -87,6 +122,13 @@ def list_tools() -> ToolsResponse:
 
 @app.post("/chat", response_model=ChatResponse)
 def chat(request: ChatRequest) -> ChatResponse:
+    if _is_chat_rate_limited():
+        raise HTTPException(
+            status_code=429,
+            detail="Too many requests. Please wait a moment and try again.",
+        )
+    _register_chat_request()
+
     filtered_history = filter_history(request.history)
     try:
         response = route_query(request.query, filtered_history)

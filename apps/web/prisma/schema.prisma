@@ -43,7 +43,15 @@ model Conversation {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages  Message[]
 
-  @@index([userId])
+  // Composite, not just @@index([userId]) (Phase 9 audit follow-up):
+  // listConversations() always filters by userId AND orders by updatedAt
+  // desc together (app/actions/conversations.ts) — a composite index
+  // serves that exact query directly instead of filtering on userId then
+  // sorting separately. The userId-only lookups elsewhere (e.g.
+  // findOwnedConversation's id+userId check) are still served by this
+  // index's leading column. Immaterial on SQLite at today's single-account
+  // scale; worth having before a Postgres migration under real load.
+  @@index([userId, updatedAt])
 }
 
 model Message {
