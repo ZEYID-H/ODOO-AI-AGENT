@@ -1,0 +1,23 @@
+# Reinstalled fresh inside the image — never copy the host's (potentially
+# wrong-platform, e.g. Windows-built native libsql bindings) node_modules.
+node_modules
+
+# Rebuilt inside the image.
+.next
+
+# Secrets — never baked into the image; passed at runtime via env_file /
+# platform secrets. See docker-compose.saas.yml.
+.env
+.env.local
+
+# SQLite data files — the real one lives on a mounted volume at runtime,
+# never inside the image itself.
+prisma/*.db
+prisma/*.db-journal
+
+# Local/dev artifacts
+.git
+.vscode
+.idea
+*.log
+coverage

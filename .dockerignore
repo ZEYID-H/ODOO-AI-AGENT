@@ -18,6 +18,15 @@ security_audit.log
 .DS_Store
 Thumbs.db
 
+# apps/web (Phase 8G) has its own Dockerfile + build context (apps/web/) and
+# is never needed when building from the repo root — excluding it here keeps
+# the Streamlit and apps/api build contexts from paying to transfer its
+# node_modules/.next (~1GB+) to the Docker daemon.
+apps/web/node_modules/
+apps/web/.next/
+apps/web/prisma/*.db
+apps/web/prisma/*.db-journal
+
 # Note: tests/, test_routing.py are intentionally KEPT in the image — they're
 # tiny pure-Python files and let `docker exec <container> python tests/...`
 # validate security/regression against the actual deployed artifact.

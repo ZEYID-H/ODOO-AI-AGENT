@@ -1,0 +1,70 @@
+# Full SaaS stack — api (FastAPI, wraps the unchanged src/ business logic)
+# + web (Next.js, chat UI + conversation persistence). The Streamlit path
+# (Dockerfile / docker-compose.yml) is untouched and can still run
+# independently — this is an additive, alternative stack.
+#
+# Build:  docker compose -f docker-compose.saas.yml build
+# Run:    docker compose -f docker-compose.saas.yml up
+#   web:   http://localhost:3000
+#   api:   http://localhost:8000  (docs at /docs)
+#
+# Env files required (both git-ignored — see the matching *.example files):
+#   .env                 (repo root)   — OPENAI_API_KEY, DATA_BACKEND, ODOO_*
+#   apps/web/.env.docker                — AUTH_SECRET, APP_ACCESS_PASSWORD
+#
+# Networking note: `web`'s browser-side code (lib/api.ts, called from
+# client components) fetches the API directly from the user's browser, not
+# from inside the web container — so it needs the API's *published host*
+# port (NEXT_PUBLIC_API_BASE_URL, baked into the client bundle at build
+# time), not Docker's internal service DNS. The two containers ARE also on
+# a shared internal network and can reach each other via the `api` service
+# name (used by web's own startup healthcheck wait in docker-entrypoint.sh,
+# and available for any future server-side calls) — internal DNS just
+# isn't reachable from the browser running on the host.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        # Baked into the browser bundle at build time — must be an address
+        # the *browser* can reach, i.e. the API's published host port.
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "3000:3000"
+    environment:
+      # Points at the persistent volume below, not a path inside the image.
+      DATABASE_URL: file:/data/conversations.db
+      # Required in Docker: Auth.js only auto-trusts the request host when
+      # NODE_ENV isn't "production" (true for `next dev`, false for our
+      # image's `next start`). Without this, login fails closed with an
+      # UntrustedHost error — verified against @auth/core's own env-default
+      # logic, not assumed.
+      AUTH_TRUST_HOST: "true"
+      # Internal Docker network address (service name `api`) — used by
+      # docker-entrypoint.sh's startup readiness wait; browser-side fetches
+      # never use this (see the note above).
+      API_INTERNAL_URL: http://api:8000
+    env_file:
+      - ./apps/web/.env.docker
+    volumes:
+      - conversations-data:/data
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  # Survives `docker compose down` (only `down -v` removes it) — this is
+  # what makes conversation history persist across container restarts.
+  conversations-data:

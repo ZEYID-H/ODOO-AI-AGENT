@@ -92,16 +92,24 @@ async function findOwnedConversation(conversationId: string, userId: string) {
   });
 }
 
-export async function createConversation(
-  title: string = "New Chat"
+async function insertConversation(
+  userId: string,
+  title: string
 ): Promise<ConversationSummary> {
-  const userId = await requireUserId();
   await ensureUser(userId);
   const conversation = await prisma.conversation.create({
     data: { title, userId },
   });
-  revalidatePath("/dashboard");
   return toSummary(conversation);
+}
+
+export async function createConversation(
+  title: string = "New Chat"
+): Promise<ConversationSummary> {
+  const userId = await requireUserId();
+  const summary = await insertConversation(userId, title);
+  revalidatePath("/dashboard");
+  return summary;
 }
 
 export async function listConversations(): Promise<ConversationSummary[]> {
@@ -111,6 +119,27 @@ export async function listConversations(): Promise<ConversationSummary[]> {
     orderBy: { updatedAt: "desc" },
   });
   return conversations.map(toSummary);
+}
+
+/**
+ * Used only by app/dashboard/page.tsx during its own server render. Next.js
+ * forbids calling revalidatePath while the route it targets is rendering
+ * ("used during render") — and there's nothing to revalidate anyway, since
+ * the page already has the fresh row it just created for this request.
+ * createConversation() (above) stays the one used by client-triggered
+ * "New Chat" clicks, where revalidatePath is the correct, supported call.
+ */
+export async function ensureInitialConversation(): Promise<ConversationSummary[]> {
+  const userId = await requireUserId();
+  const existing = await prisma.conversation.findMany({
+    where: { userId },
+    orderBy: { updatedAt: "desc" },
+  });
+  if (existing.length > 0) {
+    return existing.map(toSummary);
+  }
+  const created = await insertConversation(userId, "New Chat");
+  return [created];
 }
 
 export async function loadConversation(

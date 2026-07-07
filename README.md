@@ -280,6 +280,22 @@ The app opens at **http://localhost:8501**.
    python tests/test_security.py
    ```
 
+### Full SaaS Stack (Next.js + FastAPI, Docker Compose)
+
+A second, additive front end — a Next.js chat UI with login and persistent,
+per-user conversation history — talks to the same `route_query()` through a
+thin FastAPI wrapper (`apps/api`). Both containers run alongside the
+Streamlit app via Docker Compose:
+
+```bash
+docker compose -f docker-compose.saas.yml build
+docker compose -f docker-compose.saas.yml up
+```
+
+Web at http://localhost:3000, API at http://localhost:8000. See
+[`docs/DOCKER_SAAS_STACK.md`](docs/DOCKER_SAAS_STACK.md) for required env
+files, the architecture, and troubleshooting.
+
 ---
 
 ## Project Structure

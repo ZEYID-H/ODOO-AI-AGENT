@@ -15,6 +15,7 @@ import {
   renameConversation,
   deleteConversation,
   appendMessage,
+  ensureInitialConversation,
 } from "@/app/actions/conversations";
 import { prisma } from "@/lib/db";
 
@@ -125,6 +126,27 @@ describe("conversation CRUD", () => {
     const conv = await createConversation("Schema check");
     const saved = await appendMessage(conv.id, "assistant", "## Business Alerts\n...");
     expect(Object.keys(saved).sort()).toEqual(["content", "id", "role", "timestamp"]);
+  });
+});
+
+describe("ensureInitialConversation — render-safe auto-create", () => {
+  // This is the function app/dashboard/page.tsx calls during its own server
+  // render. Unlike createConversation(), it must never call revalidatePath —
+  // Next.js forbids revalidating the route that's currently rendering.
+  it("creates a conversation when the user has none yet", async () => {
+    const freshUser = `test-user-fresh-${Date.now()}`;
+    mockSessionFor(freshUser);
+    const result = await ensureInitialConversation();
+    expect(result).toHaveLength(1);
+    expect(result[0].title).toBe("New Chat");
+    await prisma.user.deleteMany({ where: { id: freshUser } });
+  });
+
+  it("returns the existing list unchanged when conversations already exist", async () => {
+    mockSessionFor(USER_A);
+    const before = await listConversations();
+    const result = await ensureInitialConversation();
+    expect(result.map((c) => c.id).sort()).toEqual(before.map((c) => c.id).sort());
   });
 });
 
