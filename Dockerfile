@@ -14,6 +14,17 @@ RUN pip install --no-cache-dir -r requirements.txt
 # secrets, local artifacts).
 COPY . .
 
+# Don't run as root (Phase 9 audit finding — no Dockerfile in this repo had
+# a USER directive). --create-home gives appuser a writable $HOME so
+# Streamlit's own config/credential cache (~/.streamlit/) has somewhere to
+# go. Only the /app directory entry itself is chowned (not recursively —
+# see apps/web/Dockerfile's note on why `chown -R` over a large COPY'd
+# tree is avoided) so security_audit.log can still be created at runtime
+# when DATA_BACKEND=odoo; appuser only needs read access to the rest of
+# /app, which default permissions already provide.
+RUN useradd --create-home --uid 1000 appuser && chown appuser:appuser /app
+USER appuser
+
 EXPOSE 8501
 
 # Streamlit's own health endpoint — no extra OS packages required.

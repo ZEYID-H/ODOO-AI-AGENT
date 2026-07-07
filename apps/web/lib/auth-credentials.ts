@@ -13,6 +13,8 @@
  * need to change.
  */
 
+import { isLoginRateLimited, registerFailedLogin, resetLoginRateLimit } from "./login-rate-limit";
+
 export interface AppUser {
   id: string;
   name: string;
@@ -28,4 +30,26 @@ export function verifyAppPassword(password: unknown): AppUser | null {
   if (password !== expected) return null;
 
   return { id: "personal-user", name: "Personal Access" };
+}
+
+/**
+ * The full login decision, including brute-force protection (Phase 9
+ * audit) — this is what auth.ts's authorize() calls directly, so it's the
+ * one chokepoint every sign-in attempt funnels through (the Server Action
+ * login form AND Auth.js's own raw /api/auth/callback/credentials route,
+ * which bypasses the form entirely). Kept here, pure and directly
+ * testable, for the same reason verifyAppPassword is: auth.ts itself can't
+ * be unit-tested outside a real Next.js runtime.
+ */
+export function attemptLogin(password: unknown): AppUser | null {
+  if (isLoginRateLimited()) {
+    return null;
+  }
+  const user = verifyAppPassword(password);
+  if (!user) {
+    registerFailedLogin();
+    return null;
+  }
+  resetLoginRateLimit();
+  return user;
 }

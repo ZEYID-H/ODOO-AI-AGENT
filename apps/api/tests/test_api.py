@@ -168,9 +168,48 @@ def test_chat_endpoint_handles_exception_without_stack_trace():
     assert "Traceback" not in body["result"]
 
 
+def test_chat_endpoint_logs_exception_server_side(caplog):
+    """Phase 9 audit fix: a route_query() failure must still be visible to
+    an operator via the server log, even though the client only ever sees a
+    generic message (see the exception-handling test above)."""
+    with caplog.at_level("ERROR", logger="apps.api"):
+        with patch("apps.api.main.route_query", side_effect=RuntimeError("boom")):
+            client.post("/chat", json={"query": "anything"})
+    assert any("boom" in record.getMessage() or record.exc_text and "boom" in record.exc_text
+               for record in caplog.records)
+
+
 def test_chat_endpoint_rejects_missing_query():
     resp = client.post("/chat", json={})
     assert resp.status_code == 422  # FastAPI validation error, not a 500
+
+
+# ── Request-size limits (Phase 9 audit: closes an unbounded-payload /
+#    cost-abuse vector) ──────────────────────────────────────────────────
+
+def test_chat_endpoint_rejects_oversized_query():
+    resp = client.post("/chat", json={"query": "x" * 2001})
+    assert resp.status_code == 422
+
+
+def test_chat_endpoint_accepts_query_at_the_length_limit():
+    canned = {"tool": None, "parameters": {}, "result": "ok"}
+    with patch("apps.api.main.route_query", return_value=canned):
+        resp = client.post("/chat", json={"query": "x" * 2000})
+    assert resp.status_code == 200
+
+
+def test_chat_request_schema_rejects_oversized_history_message():
+    with pytest.raises(ValidationError):
+        ChatMessage(role="user", content="x" * 5001)
+
+
+def test_chat_request_schema_rejects_too_many_history_turns():
+    with pytest.raises(ValidationError):
+        ChatRequest(
+            query="hi",
+            history=[{"role": "user", "content": "x"} for _ in range(51)],
+        )
 
 
 if __name__ == "__main__":

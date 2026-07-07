@@ -73,8 +73,17 @@ around this call.
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `query` | `string` | Yes, `min_length=1` | The user's natural-language question. Empty/missing → `422`. |
-| `history` | `[{role, content}]` \| `null` | No | Lightweight, text-only prior turns. `role` must be `"user"` or `"assistant"` (Pydantic `Literal`) — anything else → `422`. |
+| `query` | `string` | Yes, `min_length=1`, `max_length=2000` | The user's natural-language question. Empty/missing/over-length → `422`. |
+| `history` | `[{role, content}]` \| `null`, `max_length=50` | No | Lightweight, text-only prior turns. `role` must be `"user"` or `"assistant"` (Pydantic `Literal`); each `content` is capped at `max_length=5000` — anything invalid → `422`. |
+
+The length caps (Phase 9 audit) close an unbounded-payload abuse vector:
+before them, nothing stopped a client from sending an arbitrarily large
+`query` straight through to OpenAI (unlike `history`, `query` content is
+never collapsed/filtered — see below), or an arbitrarily long `history`
+array/message forcing large allocations before `filter_history` ever runs.
+None of the limits change behavior for the real frontend, which never
+approaches them (`apps/web/lib/history.ts` caps history to
+`MAX_HISTORY_TURNS` = 12 turns well under the 50-item server-side cap).
 
 **`history` is always re-filtered server-side before reaching
 `route_query()`**, regardless of what the client sends
@@ -113,7 +122,11 @@ how this interacts with database-reloaded conversation history.
   at the endpoint boundary, returned as HTTP `200` with
   `{"success": false, "tool": null, "parameters": {}, "result": "Sorry, something went wrong processing that request. Please try again."}`.
   This mirrors `app.py`'s own try/except around its `route_query()` call
-  site — the two front ends fail identically.
+  site — the two front ends fail identically. The exception itself is
+  additionally logged server-side (`logging.getLogger("apps.api")`, Phase
+  9 audit fix) — before this, a failing `route_query()` was completely
+  invisible to an operator; nothing showed up anywhere except a user
+  complaint. The client-facing response is unchanged either way.
 - **Network-level failure** (API unreachable at all): the frontend never
   gets an HTTP response — `lib/api.ts` wraps the fetch failure in
   `ApiError("Could not reach the API. Is the backend running at ...")`.

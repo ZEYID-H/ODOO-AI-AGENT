@@ -1,6 +1,18 @@
-# FastAPI backend layer (apps/api). Separate from requirements.txt so the
-# Streamlit prototype's dependency set stays untouched.
--r requirements.txt
+# FastAPI backend layer (apps/api). Deliberately independent from
+# requirements.txt (the Streamlit-only stack: streamlit, pandas, pyarrow,
+# altair, pydeck, openpyxl) — route_query()'s entire reachable call graph
+# only needs openai + python-dotenv from what requirements.txt provides.
+# Confirmed via `grep -rhE "^import |^from " src/ apps/api/` before trimming
+# this (Phase 9 audit: this used to pull in the whole Streamlit dependency
+# tree via `-r requirements.txt`, bloating the apps/api Docker image by
+# ~650MB for packages nothing in its request path ever imports).
+#
+# If you also run the Streamlit app from the same virtualenv, install both
+# files (`pip install -r requirements.txt -r requirements-api.txt`) — this
+# file alone is enough for apps/api on its own.
+
+openai>=1.0.0
+python-dotenv>=1.0.0
 
 fastapi>=0.115.0
 uvicorn[standard]>=0.30.0

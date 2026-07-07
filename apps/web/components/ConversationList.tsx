@@ -91,17 +91,22 @@ export default function ConversationList({
                     type="button"
                     disabled={disabled}
                     onClick={() => onSelect(conv.id)}
+                    aria-current={isActive ? "true" : undefined}
                     className="flex-1 min-w-0 text-left text-xs truncate disabled:cursor-not-allowed"
                     title={conv.title}
                   >
                     {conv.title}
                   </button>
+                  {/* group-hover alone leaves these invisible while genuinely
+                      keyboard-focused (Tab doesn't trigger :hover) — a real
+                      WCAG focus-visibility failure. group-focus-within/
+                      focus-visible make them appear on keyboard focus too. */}
                   <button
                     type="button"
                     aria-label={`Rename ${conv.title}`}
                     disabled={disabled}
                     onClick={() => startEditing(conv)}
-                    className="opacity-0 group-hover:opacity-100 text-xs px-1 hover:text-accent disabled:cursor-not-allowed"
+                    className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 text-xs px-1 hover:text-accent disabled:cursor-not-allowed"
                   >
                     ✏️
                   </button>
@@ -110,7 +115,7 @@ export default function ConversationList({
                     aria-label={`Delete ${conv.title}`}
                     disabled={disabled}
                     onClick={() => handleDelete(conv)}
-                    className="opacity-0 group-hover:opacity-100 text-xs px-1 hover:text-danger disabled:cursor-not-allowed"
+                    className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 text-xs px-1 hover:text-danger disabled:cursor-not-allowed"
                   >
                     🗑️
                   </button>

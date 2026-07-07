@@ -13,6 +13,7 @@ route_query, TOOL_REGISTRY, and everything they call are imported unchanged.
 Nothing in src/ is modified or duplicated here beyond the small filter below.
 """
 
+import logging
 import sys
 from pathlib import Path
 
@@ -39,6 +40,8 @@ from apps.api.schemas import (
 _TABLE_LIKE_MIN_PIPES = 3
 _MAX_HISTORY_CONTENT_CHARS = 300
 _OMITTED_NOTE = "(Prior tool output omitted.)"
+
+logger = logging.getLogger("apps.api")
 
 app = FastAPI(title="Odoo BI API", version="1.0.0")
 
@@ -95,7 +98,12 @@ def chat(request: ChatRequest) -> ChatResponse:
         )
     except Exception:
         # No stack trace ever reaches the client — same principle as app.py's
-        # own try/except around its route_query call site.
+        # own try/except around its route_query call site. The traceback
+        # still goes to the server-side log, though (Phase 9 audit finding:
+        # this used to fail completely silently — an operator had no way to
+        # know route_query() was failing for every request short of a user
+        # complaint).
+        logger.exception("route_query() failed for query=%r", request.query[:200])
         return ChatResponse(
             success=False,
             tool=None,

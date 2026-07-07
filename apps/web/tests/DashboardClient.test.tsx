@@ -102,6 +102,14 @@ describe("DashboardClient — load", () => {
 });
 
 describe("DashboardClient — chat submit", () => {
+  it("exposes an accessible name for the send button and question input (Phase 9 audit fix)", async () => {
+    setupHealthyBackend();
+    renderDashboard();
+    await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
+    expect(screen.getByLabelText("Send message")).toBeInTheDocument();
+    expect(screen.getByLabelText("Ask a business question")).toBeInTheDocument();
+  });
+
   it("shows a loading state and renders the answer once chat resolves", async () => {
     setupHealthyBackend();
     let resolveChat!: (v: Awaited<ReturnType<typeof chat>>) => void;

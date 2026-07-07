@@ -1,15 +1,18 @@
 # Running the Full SaaS Stack Locally (Docker Compose)
 
-**Built in Phase 8G, clarified in 8H.** Runs the Next.js frontend, the
-FastAPI backend, and the existing Python `src/` business logic together via
-Docker Compose, with conversation persistence surviving container
-restarts. This is **local development/testing tooling only** — production
-hosting is a later, separate phase (see `docs/NEXT_PHASES.md` and
-`docs/SAAS_MIGRATION_PLAN.md` §7).
+**Built in Phase 8G, clarified in 8H, hardened in Phase 9.** Runs the
+Next.js frontend, the FastAPI backend, and the existing Python `src/`
+business logic together via Docker Compose, with conversation persistence
+surviving container restarts. This is **local development/testing tooling
+only** — production hosting is a later, separate phase (see
+`docs/NEXT_PHASES.md` and `docs/SAAS_MIGRATION_PLAN.md` §7).
 
-The existing Streamlit app (`app.py`, `Dockerfile`, `docker-compose.yml`) is
-untouched and keeps working independently — this is an additive stack, not
-a replacement.
+The existing Streamlit app (`app.py`, `docker-compose.yml`) is untouched
+and keeps working independently — this is an additive stack, not a
+replacement. Its `Dockerfile` did pick up the same non-root-user hardening
+described below (Phase 9 audit), since the underlying finding — every
+Dockerfile in this repo ran as root — applied there too; nothing about
+`app.py`'s own code changed.
 
 Related docs: [`API_CONTRACT.md`](API_CONTRACT.md) (what `apps/api`
 exposes), [`AUTH_AND_PERSISTENCE.md`](AUTH_AND_PERSISTENCE.md) (login +
@@ -129,6 +132,40 @@ docker compose -f docker-compose.saas.yml restart web
 
 ---
 
+## Image security and size (Phase 9 audit)
+
+**Non-root**: both containers now run as a non-root user — `appuser`
+(`api`, created explicitly) and `node` (`web`, reused from the
+`node:20-slim` base image's own built-in user). Neither Dockerfile had a
+`USER` directive before this; running as root inside a container widens
+the blast radius if the container is ever compromised. Verified live:
+`docker compose -f docker-compose.saas.yml exec api whoami` → `appuser`,
+same for `web` → `node`; the full login/dashboard/persistence flow was
+re-verified end-to-end afterward to confirm nothing broke (in particular,
+`prisma migrate deploy` writing to the `/data` volume, and
+`odoo_security.py`'s audit log being creatable under `DATA_BACKEND=odoo`).
+
+If you extend either Dockerfile: avoid `chown -R` over a large `COPY`'d
+tree (e.g. `node_modules`) in a layer *after* the `COPY` — this was tried
+first here and measured to nearly **double** the `web` image size (2.02GB
+→ 3.17GB), because a recursive ownership change on a huge tree duplicates
+that content into the new layer rather than just touching metadata. The
+fix: only `chown` directories that actually need to be *written to* at
+runtime (here, just the empty `/data` mount point — the app never writes
+inside `/app` itself), and do it non-recursively where possible.
+
+**`api` image size**: dropped from ~886MB to ~300MB by decoupling
+`requirements-api.txt` from `requirements.txt`. The API never imports
+Streamlit, pandas, pyarrow, altair, or openpyxl — `route_query()`'s entire
+reachable call graph only needs `openai` and `python-dotenv` from what
+`requirements.txt` provides (verified via `grep -rhE "^import |^from " src/
+apps/api/` before trimming). The `web` image is still ~2GB — a known,
+already-documented tradeoff (full `node_modules`, not a pruned
+"standalone" build, because the Prisma CLI needs its full dependency tree
+to run `migrate deploy` against the mounted volume at startup).
+
+---
+
 ## Environment variables reference
 
 | Variable | Service | Set in | Purpose |
@@ -179,3 +216,8 @@ docker compose -f docker-compose.saas.yml restart web
   inside the `api` container**: `NEXT_PUBLIC_API_BASE_URL` was baked in at
   build time — rebuild `web` (`docker compose -f docker-compose.saas.yml
   build web`) after changing it, a plain restart won't pick up a new value.
+- **Login keeps failing even with the correct password**: a per-process
+  brute-force limiter (Phase 9 audit) blocks further attempts after 5
+  failures within 60 seconds — including from the login form itself
+  retrying. Wait a minute, or restart the `web` container to clear the
+  in-memory counter immediately. See `docs/AUTH_AND_PERSISTENCE.md`.

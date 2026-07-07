@@ -1,9 +1,11 @@
 # Next Phases — Recommendations and Risks
 
-**Status as of Phase 8H:** the SaaS migration (Streamlit prototype →
+**Status as of Phase 9:** the SaaS migration (Streamlit prototype →
 Next.js + FastAPI + Docker Compose, with login and per-user conversation
-persistence) is functionally complete and locally validated. What follows
-is a forward-looking recommendation, not a commitment — nothing here is
+persistence) is functionally complete and locally validated; Phase 9 was a
+production-readiness audit that fixed the Critical/High findings in place
+(see `docs/AUDIT_PHASE_9.md`) rather than adding features. What follows is
+a forward-looking recommendation, not a commitment — nothing here is
 scheduled or approved. See `docs/SAAS_MIGRATION_PLAN.md` §11 for what was
 actually built through Phase 8H and any deviations from the original plan.
 
@@ -31,8 +33,10 @@ momentum.
    not a data-model change. Needed before any deployment with more than one
    running instance of `apps/web` (SQLite files don't coordinate across
    processes/containers).
-4. **Rate limiting** — on `/chat` (API cost control) and on login (brute-force
-   protection on the shared password, or its replacement).
+4. **Rate limiting on `/chat`** (API cost control — call *frequency*, not
+   just per-request size, which Phase 9 already bounds). Login brute-force
+   protection was added in Phase 9, but only as an in-memory,
+   single-process limiter — revisit if this is ever horizontally scaled.
 5. **Structured logging / monitoring** for `apps/web` and `apps/api`
    (request logs, error tracking) — today, errors are caught and hidden
    from the client (correctly, for security) but not captured anywhere
@@ -41,9 +45,12 @@ momentum.
 6. **Production deployment of the SaaS stack** — `docker-compose.saas.yml`
    is local-only by design (see `docs/DOCKER_SAAS_STACK.md`). A real
    deployment needs: a real domain + TLS, secrets management (not `.env`
-   files), the Postgres migration above, and a decision on hosting
-   (Vercel for `apps/web`, a container host for `apps/api`, matching the
-   original plan in `docs/SAAS_MIGRATION_PLAN.md` §7).
+   files), the Postgres migration above, **inter-service authentication
+   for `apps/api`** (Phase 9 audit finding: it currently trusts any caller
+   that can reach it — safe only because both services are on the same
+   loopback interface today, see the risk table below), and a decision on
+   hosting (Vercel for `apps/web`, a container host for `apps/api`,
+   matching the original plan in `docs/SAAS_MIGRATION_PLAN.md` §7).
 7. **Conversation list UX at scale** — pagination/search once a user has
    more than a screenful of conversations (today's sidebar loads everything
    unbounded).
@@ -90,8 +97,10 @@ running on my machine" and becomes something other people log into.
 
 | Risk | Why it matters | Where it's tracked |
 |---|---|---|
+| **`apps/api` has no authentication of its own** | Every endpoint (`/chat` included) trusts any caller who can reach it — `apps/web`'s login gate is the *only* access control in the whole system. Fine when both are reached only via `127.0.0.1` on one machine (Phase 9 restricted `docker-compose.saas.yml`'s port bindings to loopback specifically because of this — see `docs/DOCKER_SAAS_STACK.md`); would need real inter-service auth (a shared secret header, mTLS, or network-level isolation) before `apps/api` could ever be reachable from anywhere but the same host as `apps/web`. Deliberately not attempted as a quick audit-phase patch — it's a design decision, not a bug fix. | `docs/API_CONTRACT.md`, `docs/AUDIT_PHASE_9.md` |
 | Single shared password | Anyone who has it has full access to everything; no per-user isolation, no revocation without changing the password for everyone | `docs/AUTH_AND_PERSISTENCE.md` |
-| No rate limiting anywhere | Unbounded `/chat` calls are unbounded OpenAI spend; unbounded login attempts are a brute-force surface | `docs/AUTH_AND_PERSISTENCE.md`, `docs/API_CONTRACT.md` |
+| Login rate limiting is per-process, not distributed | Phase 9 added brute-force protection (5 attempts/60s, enforced in `authorize()` — closes both the login form and Auth.js's raw credentials-callback route), but it's in-memory: resets on restart, doesn't coordinate across multiple instances | `docs/AUTH_AND_PERSISTENCE.md` |
+| No rate limiting on `/chat` | An authenticated session can call it unboundedly — unbounded OpenAI spend per session (request *size* is capped since Phase 9, but not call frequency) | `docs/API_CONTRACT.md` |
 | SQLite under concurrent load | File-based SQLite does not safely coordinate writes across multiple processes/instances the way a real production database needs to | `docs/AUTH_AND_PERSISTENCE.md` |
 | Secrets in plain `.env` files | Fine for local dev; not an acceptable secrets story for a real deployment (no rotation, no access control, easy to leak via a misconfigured `.dockerignore`/`.gitignore`) | `docs/DOCKER_SAAS_STACK.md` |
 | No monitoring/alerting | A production outage or a runaway OpenAI cost would currently be discovered by a user complaining, not by the system telling anyone | this document, §"Recommended next phases" |

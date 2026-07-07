@@ -99,6 +99,43 @@ guarantee. The real protection has to live as close to the protected
 content as possible, which is what `requireSession()` is. This project has
 no `proxy.ts` for `/dashboard` at all.
 
+### Brute-force protection (Phase 9 audit)
+
+Nothing previously stopped unlimited automated password guessing against
+the single shared password — the one credential protecting 100% of this
+app's data. Fixed via `lib/auth-credentials.ts::attemptLogin`, a global
+(not per-IP), in-memory sliding-window limiter: 5 failed attempts within
+60 seconds blocks further attempts until the window clears; a successful
+login resets the counter immediately.
+
+**Where it actually lives matters.** The first version of this fix put the
+check only in `app/actions/auth.ts`'s `loginAction` (the Server Action the
+login form submits to) — but Auth.js auto-mounts a raw
+`/api/auth/callback/credentials` route that calls the provider's
+`authorize()` callback **directly**, completely bypassing `loginAction`.
+Confirmed by actually POSTing to that route repeatedly against a running
+Docker container and watching it keep accepting attempts. The fix moved to
+`attemptLogin`, called directly from `auth.ts`'s `authorize()` — the one
+true chokepoint both the form and the raw endpoint funnel through.
+`loginAction`'s own `isLoginRateLimited()` check remains as a UX nicety
+only (skips calling `signIn()` at all once already locked out, so the form
+can show a specific "too many attempts" message — the raw endpoint always
+gets the same generic "invalid credentials" signal either way, by design,
+so it never learns rate-limit state).
+
+Verified against the running container: unit tests exercise the counter
+logic in isolation (`tests/auth-credentials.test.ts`,
+`tests/login-rate-limit.test.ts`), and the live behavior was confirmed
+with a temporary debug log showing attempts 1–5 checking the password and
+attempts 6+ short-circuiting on the rate limit — removed before commit.
+
+**Known limitation, stated plainly**: this state is in-memory and
+per-process. It resets on every restart/redeploy and does not coordinate
+across multiple instances — consistent with this app's current
+single-instance deployment model (SQLite has the same constraint; see
+below), not a substitute for a distributed rate limiter if this is ever
+horizontally scaled.
+
 ### Login/logout flow
 
 - `/login` (`app/login/page.tsx`) — a Server Component that redirects
@@ -264,8 +301,12 @@ publicly without addressing them (see
 - **No roles or permissions.** Anyone with the password has full access to
   every conversation the single account owns (which, today, is everyone's,
   since there's only one account).
-- **No rate limiting on login.** The credentials `authorize()` callback has
-  no brute-force protection.
+- **Rate limiting on login is process-local, not distributed** (Phase 9
+  audit — see above). Real protection against a single instance, but
+  resets on restart and doesn't coordinate across multiple instances.
+- **No rate limiting on `/chat`** — an authenticated session can call it
+  unboundedly (bounded per-request cost by `apps/api`'s request-size
+  limits since Phase 9, but not per-session/per-time-window).
 - **No audit log for auth events** (login/logout aren't logged anywhere,
   unlike Odoo reads — see `SECURITY_REVIEW.md` for how that's handled
   elsewhere in this project).

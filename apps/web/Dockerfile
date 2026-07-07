@@ -40,6 +40,23 @@ EXPOSE 3000
 
 RUN chmod +x ./docker-entrypoint.sh
 
+# Don't run as root (Phase 9 audit finding — no Dockerfile in this repo had
+# a USER directive). node:20-slim already ships a non-root "node" user
+# (uid 1000) — reused here rather than creating a new one.
+#
+# Deliberately NOT `chown -R node:node /app`: recursively rewriting
+# ownership of the already-COPY'd node_modules (~600MB+) creates a new
+# image layer that duplicates that content instead of just changing
+# metadata — measured this by actually building it (Phase 9 audit): image
+# size went 2.02GB -> 3.17GB. The app doesn't need /app itself writable at
+# runtime (this isn't a pruned "standalone" build with a runtime cache
+# write path — see the top-of-file note); it only ever writes to /data
+# (the mounted SQLite volume, via prisma migrate deploy in
+# docker-entrypoint.sh), which is a plain empty directory — chowning it
+# alone is a cheap, non-recursive, single-directory metadata change.
+RUN mkdir -p /data && chown node:node /data
+USER node
+
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD node -e "fetch('http://localhost:3000/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 

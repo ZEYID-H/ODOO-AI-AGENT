@@ -113,6 +113,36 @@ describe("Sidebar — conversation list wiring", () => {
     expect(onSelectConversation).toHaveBeenCalledWith("c2");
   });
 
+  it("marks the active conversation with aria-current, not color alone (Phase 9 audit fix)", () => {
+    render(
+      <Sidebar
+        status="online"
+        toolCount={14}
+        onAsk={vi.fn()}
+        {...conversationProps}
+        conversations={conversations}
+        activeId="c1"
+      />
+    );
+    expect(screen.getByText("First chat")).toHaveAttribute("aria-current", "true");
+    expect(screen.getByText("Second chat")).not.toHaveAttribute("aria-current");
+  });
+
+  it("exposes accessible labels for the rename/delete icon-only buttons", () => {
+    render(
+      <Sidebar
+        status="online"
+        toolCount={14}
+        onAsk={vi.fn()}
+        {...conversationProps}
+        conversations={conversations}
+        activeId="c1"
+      />
+    );
+    expect(screen.getByLabelText("Rename First chat")).toBeInTheDocument();
+    expect(screen.getByLabelText("Delete First chat")).toBeInTheDocument();
+  });
+
   it("invokes onNewConversation when New Chat is clicked", () => {
     const onNewConversation = vi.fn();
     render(

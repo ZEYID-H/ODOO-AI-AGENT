@@ -34,12 +34,14 @@ export default function ChatInput({
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Ask a business question..."
+        aria-label="Ask a business question"
         className="flex-1 rounded-lg border border-line bg-surface-2 px-4 py-3 text-sm text-ink placeholder:text-ink-dim focus:outline-none focus:border-accent disabled:opacity-60"
       />
       <button
         type="button"
         onClick={submit}
         disabled={disabled || !value.trim()}
+        aria-label="Send message"
         className="rounded-lg bg-accent text-surface px-4 py-3 text-sm font-medium hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
       >
         ↑
