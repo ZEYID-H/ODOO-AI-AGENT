@@ -415,6 +415,23 @@ know *which driver* acted.
 OCR, uploads, DeliveryProof, invitation system, password reset, profile editing,
 OAuth providers, token revocation.
 
+**Implementation notes (approved constraint — NO USER MANAGEMENT UI):**
+D1 establishes identity; it does not manage identities. User administration will
+become its own future module, planned through its own gate. Concretely forbidden in
+D1: a Users page, Create/Edit/Delete User pages, a user table, user search, any user
+administration screen, password reset, invitation flows, and profile pages.
+
+Accounts are created **only** by Prisma seed or a small CLI script — no browser UI.
+The expected initial setup is exactly this and nothing more (passwords supplied via
+env/CLI at seed time, never committed):
+
+```
+admin           ********   OWNER     (reuses the personal-user id — see §2)
+driver_ahmed    ********   DRIVER
+driver_mohammed ********   DRIVER
+driver_ali      ********   DRIVER
+```
+
 **Likely files (all in `apps/web`):**
 - `prisma/schema.prisma` + one migration (three `User` fields — no other model
   touched)
