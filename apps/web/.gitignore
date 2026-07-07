@@ -40,3 +40,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/lib/generated/prisma
+
+# Prisma SQLite data files — never committed. prisma/migrations/ (the schema
+# history) IS committed; only the actual data files are excluded here.
+/prisma/*.db
+/prisma/*.db-journal

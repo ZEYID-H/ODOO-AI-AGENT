@@ -34,14 +34,33 @@ export interface HistoryMessage {
  * like "show unpaid invoices too". */
 export const MAX_HISTORY_TURNS = 12;
 
+// Same shape-based signal apps/api/main.py::filter_history uses. Needed as a
+// fallback here (not just the `tool` flag) because a conversation reloaded
+// from the database (Phase 8F) only has {role, content, timestamp} — the
+// `tool` flag that marks a *freshly received* tool response never survives
+// persistence (by design: only role/content/timestamp are saved). Without
+// this, a reloaded conversation's history would resend full markdown tables
+// as "history" on the very next message, which is exactly what the
+// lightweight-history contract exists to prevent.
+const TABLE_LIKE_MIN_PIPES = 3;
+const MAX_HISTORY_CONTENT_CHARS = 300;
+
+function looksLikeToolOutput(content: string): boolean {
+  return (content.match(/\|/g)?.length ?? 0) >= TABLE_LIKE_MIN_PIPES ||
+    content.length > MAX_HISTORY_CONTENT_CHARS;
+}
+
 export function buildLightweightHistory(
   turns: ChatTurn[],
   maxTurns: number = MAX_HISTORY_TURNS
 ): HistoryMessage[] {
   const recent = maxTurns > 0 ? turns.slice(-maxTurns) : turns;
   return recent.map((turn) => {
-    if (turn.role === "assistant" && turn.tool) {
-      return { role: "assistant", content: `(Provided ${turn.tool} results.)` };
+    if (turn.role === "assistant" && (turn.tool || looksLikeToolOutput(turn.content))) {
+      return {
+        role: "assistant",
+        content: turn.tool ? `(Provided ${turn.tool} results.)` : "(Prior tool output omitted.)",
+      };
     }
     return { role: turn.role, content: turn.content };
   });

@@ -11,6 +11,13 @@
  * adapter for real user accounts, or enrich the `jwt`/`session` callbacks
  * with role/organization/tenant fields — none of that requires touching
  * the /dashboard guard (lib/session-guard.ts) or the login form.
+ *
+ * Note (Phase 8F): Auth.js's *default* `session` callback deliberately
+ * strips everything except name/email/image — `user.id` does NOT reach
+ * `session.user.id` without an explicit callback, even though the JWT's
+ * internal `sub` claim already holds it. Conversation ownership (Phase 8F)
+ * needs a stable user id, so both callbacks below are required, not
+ * optional polish.
  */
 
 import NextAuth from "next-auth";
@@ -32,4 +39,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       },
     }),
   ],
+  callbacks: {
+    jwt({ token, user }) {
+      if (user) {
+        token.sub = user.id;
+      }
+      return token;
+    },
+    session({ session, token }) {
+      if (token.sub) {
+        session.user.id = token.sub;
+      }
+      return session;
+    },
+  },
 });

@@ -13,5 +13,11 @@ export default defineConfig({
     // "// @vitest-environment jsdom" pragma at the top of the test file.
     environment: "node",
     setupFiles: ["./vitest.setup.ts"],
+    // Dedicated SQLite file for tests — never the dev database. Schema is
+    // kept in sync via the `pretest` npm script (prisma migrate deploy
+    // against this same URL) before vitest ever runs.
+    env: {
+      DATABASE_URL: "file:./prisma/test.db",
+    },
   },
 });

@@ -2,20 +2,32 @@
 
 import { QUICK_ACTIONS } from "@/lib/quickActions";
 import { logoutAction } from "@/app/actions/auth";
+import ConversationList from "@/components/ConversationList";
+import type { ConversationSummary } from "@/app/actions/conversations";
 import type { ConnectionStatus } from "./TopBar";
 
 export default function Sidebar({
   status,
   toolCount,
   onAsk,
-  onClear,
   disabled,
+  conversations,
+  activeId,
+  onSelectConversation,
+  onNewConversation,
+  onRenameConversation,
+  onDeleteConversation,
 }: {
   status: ConnectionStatus;
   toolCount: number | null;
   onAsk: (question: string) => void;
-  onClear: () => void;
   disabled?: boolean;
+  conversations: ConversationSummary[];
+  activeId: string | null;
+  onSelectConversation: (id: string) => void;
+  onNewConversation: () => void;
+  onRenameConversation: (id: string, title: string) => void;
+  onDeleteConversation: (id: string) => void;
 }) {
   return (
     <aside className="w-72 shrink-0 border-r border-line bg-surface-2 p-5 flex flex-col gap-6 overflow-y-auto">
@@ -38,6 +50,16 @@ export default function Sidebar({
         <div>Tools available: <span className="text-ink">{toolCount ?? "…"}</span></div>
       </div>
 
+      <ConversationList
+        conversations={conversations}
+        activeId={activeId}
+        onSelect={onSelectConversation}
+        onNew={onNewConversation}
+        onRename={onRenameConversation}
+        onDelete={onDeleteConversation}
+        disabled={disabled}
+      />
+
       <div className="border-t border-line pt-4">
         <div className="font-medium text-ink text-xs mb-2">Quick Questions</div>
         <div className="flex flex-col gap-1.5">
@@ -56,13 +78,6 @@ export default function Sidebar({
       </div>
 
       <div className="border-t border-line pt-4 mt-auto space-y-1.5">
-        <button
-          type="button"
-          onClick={onClear}
-          className="w-full text-xs rounded-lg border border-line px-3 py-2 text-ink-dim hover:text-ink transition"
-        >
-          🗑️ Clear Chat
-        </button>
         <form action={logoutAction}>
           <button
             type="submit"

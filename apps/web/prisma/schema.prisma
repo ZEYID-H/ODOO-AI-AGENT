@@ -1,0 +1,58 @@
+// Conversation persistence for the Odoo BI Assistant (Phase 8F).
+//
+// No AI/business data lives here — only conversation/message bookkeeping.
+// role/content/timestamp are the only message fields, deliberately: tool
+// names, parameters, and formatted-vs-lightweight distinctions are UI/API
+// concerns (see apps/web/lib/history.ts), not persistence concerns.
+//
+// SQLite now, Postgres-ready later: every type used here (String, DateTime,
+// cuid ids) is fully portable — migrating means changing `provider` and
+// `DATABASE_URL` only, no field/type changes required. `String` is used for
+// `role` instead of a Prisma `enum` for identical reasons of portability and
+// simplicity; the allowed values are enforced at the application boundary
+// (Zod-free but validated in code, mirroring the existing role: "user" |
+// "assistant" union already used throughout apps/web).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// Minimal on purpose: today Auth.js always yields the single synthetic user
+// from lib/auth-credentials.ts ("personal-user"). This table exists now so
+// ownership is a real foreign-key relation (not a loose string match) and so
+// swapping in real multi-user auth later only means adding fields here —
+// Conversation/Message and every action in app/actions/conversations.ts stay
+// unchanged.
+model User {
+  id            String         @id
+  createdAt     DateTime       @default(now())
+  conversations Conversation[]
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  title     String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  @@index([userId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  role           String // "user" | "assistant"
+  content        String
+  timestamp      DateTime     @default(now())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}

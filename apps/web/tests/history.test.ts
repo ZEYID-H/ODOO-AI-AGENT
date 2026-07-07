@@ -68,4 +68,35 @@ describe("buildLightweightHistory", () => {
   it("returns an empty array for an empty conversation", () => {
     expect(buildLightweightHistory([])).toEqual([]);
   });
+
+  // Messages reloaded from the database (Phase 8F) never carry a `tool`
+  // flag — only {role, content, timestamp} is ever persisted. These cases
+  // confirm the content-shape fallback still catches table-like/long
+  // assistant turns even without that flag.
+  it("collapses a DB-reloaded assistant turn with table-like content but no tool flag", () => {
+    const turns: ChatTurn[] = [
+      {
+        role: "assistant",
+        content: "## Balance\n| Field | Value |\n|---|---|\n| Owed | QAR 33,574.50 |",
+      },
+    ];
+    const filtered = buildLightweightHistory(turns);
+    expect(filtered).toEqual([{ role: "assistant", content: "(Prior tool output omitted.)" }]);
+    expect(filtered[0].content).not.toContain("QAR");
+  });
+
+  it("collapses a DB-reloaded assistant turn that is merely long, with no pipes at all", () => {
+    const longText = "This is a very long executive summary. ".repeat(10);
+    expect(longText.length).toBeGreaterThan(300);
+    const turns: ChatTurn[] = [{ role: "assistant", content: longText }];
+    const filtered = buildLightweightHistory(turns);
+    expect(filtered).toEqual([{ role: "assistant", content: "(Prior tool output omitted.)" }]);
+  });
+
+  it("does not collapse a short, plain DB-reloaded assistant turn", () => {
+    const turns: ChatTurn[] = [{ role: "assistant", content: "Sure, happy to help." }];
+    expect(buildLightweightHistory(turns)).toEqual([
+      { role: "assistant", content: "Sure, happy to help." },
+    ]);
+  });
 });
