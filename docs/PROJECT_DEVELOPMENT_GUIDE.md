@@ -154,5 +154,7 @@ and what comes next). No next phase starts without approval of the previous repo
 - **Delivery Management** — planned in `docs/DELIVERY_MANAGEMENT_PLAN.md`; phases
   D1–D6; D1 not yet started. This module supersedes, with approval, the
   "no user roles yet" and "no admin dashboard yet" entries in `docs/NEXT_PHASES.md` —
-  in the smallest possible increments (roles as a session-level concept first; real
-  per-driver accounts only when data ownership requires them).
+  via a minimal identity foundation in D1 (OWNER/DRIVER roles, individual
+  username/password accounts on the existing `User` model; no user-management
+  system). A shared driver password was explicitly rejected: delivery proofs must be
+  attributable to an individual driver from the first record.
