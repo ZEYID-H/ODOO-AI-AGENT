@@ -1,7 +1,10 @@
 # Deployment Guide
 
-This document covers taking the Odoo Business Intelligence Assistant from
+This document covers taking the **Streamlit prototype** (`app.py`) from
 "runs on my machine" to "accessible from a browser, no terminal required."
+For the newer Next.js + FastAPI SaaS stack's *local* Docker Compose setup,
+see `docs/DOCKER_SAAS_STACK.md` — that stack has not been deployed to a
+public host yet; see `docs/NEXT_PHASES.md` for what that would require.
 
 Deployment only — this does not change any business logic, analytics,
 routing, or security code. See `SECURITY_REVIEW.md` for the security model,

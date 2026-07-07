@@ -5,11 +5,12 @@ business logic, tool logic, or Odoo access of its own — every question is
 sent to the FastAPI backend (`apps/api`), which is the only thing that talks
 to `route_query()`.
 
-See `docs/SAAS_MIGRATION_PLAN.md` for the full migration context. Phase 8C
+See `docs/SAAS_MIGRATION_PLAN.md` for the full migration history. Phase 8C
 shipped a working chat UI against the FastAPI backend; Phase 8D hardened its
 error handling, history bounds, and double-submit safety; Phase 8E added a
-personal-access login gate (see below). Full Docker Compose stack and a
-final doc pass land in later phases (8F–8G).
+personal-access login gate (see below); Phase 8F added per-user conversation
+persistence (see below); Phase 8G added the full Docker Compose stack
+(`docker-compose.saas.yml`, `docs/DOCKER_SAAS_STACK.md`).
 
 ## Install
 
@@ -111,17 +112,31 @@ require touching `route_query()`, the chat UI, or the dashboard guard itself:
   `session.user` fields once they exist, same pattern as the auth check
   itself.
 
+## Conversation persistence (Phase 8F)
+
+Each authenticated user's conversations are stored in SQLite via Prisma —
+sidebar list, New Chat / rename / delete / switch, auto-created first
+conversation, full CRUD in `app/actions/conversations.ts`. Only
+`role`/`content`/`timestamp` per message is ever persisted; no tool
+internals. Ownership is enforced server-side on every read/write — a
+conversation ID belonging to another user is indistinguishable from one
+that doesn't exist. Full detail, schema, and what's intentionally not
+built (real multi-user accounts, Postgres, rate limiting):
+`docs/AUTH_AND_PERSISTENCE.md`.
+
 ## What it calls
 
 - `GET /health` — on load, to show a connected/offline indicator.
 - `GET /tools` — on load, to show the live tool count.
 - `POST /chat` — on every question (typed or via a quick-action card).
 
-`lib/api.ts` is the only file that talks to the network. `lib/history.ts`
-keeps the conversation history sent back to the API lightweight and
-text-only (mirrors `app.py`'s `_build_history`) — a full tool-output table
-is never resent as "history," even though the backend also independently
-re-filters it server-side.
+`lib/api.ts` is the only file that talks to the FastAPI backend over HTTP
+(see `docs/API_CONTRACT.md` for the full contract). `lib/history.ts` keeps
+the conversation history sent back to the API lightweight and text-only
+(mirrors `app.py`'s `_build_history`) — a full tool-output table is never
+resent as "history," whether the turn just arrived from `/chat` or was
+reloaded from the conversation database, even though the backend also
+independently re-filters it server-side.
 
 ## Hardening (Phase 8D)
 
@@ -160,14 +175,25 @@ npm run test
 | `tests/auth-credentials.test.ts` | The password-check logic in isolation: correct password succeeds, wrong password fails, and — critically — an unconfigured `APP_ACCESS_PASSWORD` fails closed (never accepts anything) rather than failing open. |
 | `tests/session-guard.test.ts` | `requireSession()`: redirects to `/login` when there's no session, does not redirect when there is one. |
 | `tests/LoginForm.test.tsx` | The login form renders a real `type="password"` field; an invalid-credentials response shows a clear error without echoing the submitted password; the submit button shows a pending state and re-enables after the request settles. |
+| `tests/conversations.test.ts` | Conversation/message CRUD against a real, isolated test SQLite database: create/list/load/rename/delete, message persistence (only `role`/`content`/`timestamp` saved), and ownership enforcement — a second user can't read, rename, delete, or append to the first user's conversations, and never sees them listed. |
+
+`tests/DashboardClient.test.tsx` and `tests/display.test.tsx` also cover
+the conversation-list UI (switching, New Chat, rename, delete, and that a
+persisted conversation's history renders on load) — see those files for
+the full case list.
 
 Not covered by `npm run test` (jsdom/RTL can't exercise async Server
-Components or real HTTP cookies) but verified live instead: a plain `curl`
-to `/dashboard` with no auth returns a genuine 307 to `/login` (proving
-server-side, not client-side, protection), and a full browser pass (headless
-Chromium) confirmed wrong-password → error, correct password → dashboard
-renders, visiting `/login` while authenticated → redirected to `/dashboard`,
-and logout → `/dashboard` becomes protected again.
+Components, real HTTP cookies, or a real Prisma-backed server render) but
+verified live instead: a plain `curl` to `/dashboard` with no auth returns
+a genuine redirect to `/login` (proving server-side, not client-side,
+protection); a full browser pass (headless Chromium, Phase 8E) confirmed
+wrong-password → error, correct password → dashboard renders, visiting
+`/login` while authenticated → redirected to `/dashboard`, and logout →
+`/dashboard` becomes protected again; and, running the actual Docker image
+(Phase 8G), a real cookie-based Auth.js login followed by an authenticated
+dashboard load, plus conversation/message persistence surviving a
+container restart, verified end-to-end via `curl` and direct database
+inspection (`docs/DOCKER_SAAS_STACK.md`).
 
 ## Build
 
@@ -178,7 +204,10 @@ npm run build
 ## What this app does NOT do
 
 - No business logic, no tool logic, no direct Odoo or OpenAI access.
-- No database (Auth.js uses JWT sessions only), no billing, no
-  organizations/multi-tenancy, no user roles yet.
+- No real user accounts (Auth.js session is JWT-based; the one database
+  that exists — SQLite via Prisma — stores conversation history only,
+  scoped to the single shared-password account; see
+  `docs/AUTH_AND_PERSISTENCE.md`), no billing, no organizations/multi-tenancy,
+  no user roles yet.
 - Does not affect the existing Streamlit app (`app.py`) in any way; both can
   run side by side, both ultimately call the same unchanged `route_query()`.

@@ -26,37 +26,59 @@ risking a single write to production data.
 
 ## Architecture
 
-**Conceptual flow:**
+**Two front doors, one unchanged core.** The original Streamlit prototype
+and a newer Next.js + FastAPI SaaS stack both run against the exact same
+Python business logic — neither duplicates a single tool, formatter, or
+security rule. Pick whichever UI you want; both answer identically because
+both ultimately call the same function.
 
 ```
-User
-  │
-  ▼
-Streamlit UI  (chat, dashboard, quick questions, exports)
-  │
-  ▼
-LLM  (OpenAI function calling — chooses a tool + arguments from natural language)
-  │
-  ▼
-Router  (orchestrator — OpenAI path, with a deterministic rule-based fallback)
-  │
-  ▼
-Business Tools  (customer / product / sales / invoice / alerts analytics)
-  │
-  ▼
-Read-Only Gateway  (the only file allowed to speak XML-RPC to Odoo)
-  │
-  ▼
-Odoo  (search / search_read / read only)
+                          Browser
+                             │
+              ┌──────────────┴──────────────┐
+              ▼                              ▼
+     Streamlit UI (app.py)          Next.js UI (apps/web)
+     in-process function call       login + conversation history
+              │                              │
+              │                    POST /chat, GET /health, GET /tools
+              │                              │
+              │                              ▼
+              │                    FastAPI (apps/api) — thin HTTP
+              │                    wrapper, zero business logic
+              │                              │
+              └──────────────┬───────────────┘
+                              ▼
+                    route_query()  [src/agent/router.py]
+                              │
+                              ▼
+              LLM (OpenAI function calling) chooses a tool + arguments,
+              with a deterministic rule-based fallback if OpenAI is
+              unavailable — the app never goes fully offline
+                              │
+                              ▼
+                    TOOL_REGISTRY  [src/agent/tool_registry.py]
+                              │
+                              ▼
+        Business Tools  [src/tools/ — customer / product / sales /
+        invoice / alerts analytics, pure Python, no direct Odoo access]
+                              │
+                              ▼
+        Read-Only Gateway  [src/services/odoo_service.py — the ONLY
+        module allowed to speak XML-RPC to Odoo]
+                              │
+                              ▼
+                Odoo  (search / search_read / read only)
 ```
 
 **Layer by layer:**
 
 | Layer | Responsibility |
 |---|---|
-| **Streamlit UI** (`app.py`) | Chat interface, Executive Dashboard, quick-question buttons, statement export downloads. Presentation only — no business logic. |
+| **Streamlit UI** (`app.py`) | Chat interface, Executive Dashboard, quick-question buttons, statement export downloads. Presentation only — no business logic. Calls `route_query()` in-process. |
+| **Next.js UI** (`apps/web`) | Login-gated chat interface with persistent, per-user conversation history. Presentation + auth + conversation storage only — no business logic, no direct Odoo access. Calls the FastAPI backend over HTTP. See the *SaaS Stack* installation section below. |
+| **FastAPI backend** (`apps/api`) | Thin HTTP wrapper around `route_query()` for `apps/web` — translates HTTP requests to the same function call the Streamlit app makes in-process. No business logic of its own. See [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md). |
 | **LLM** (`src/services/openai_service.py`) | Sends the question + tool schemas to OpenAI. The model selects a tool and extracts arguments (e.g. `get_customer_balance(customer_name="Apple Mart")`); it never touches Odoo directly. |
-| **Router** (`src/agent/router.py`) | The single entry point (`route_query`). Tries the OpenAI path first; if the API is unavailable or fails, falls back to deterministic keyword-based routing so the app **never goes fully offline**. |
+| **Router** (`src/agent/router.py`) | The single entry point (`route_query`), used identically by both front ends. Tries the OpenAI path first; if the API is unavailable or fails, falls back to deterministic keyword-based routing so neither UI **ever goes fully offline**. |
 | **Business Tools** (`src/tools/`) | 14 read-only analytics functions (balances, statements, insights, alerts, dashboard, etc.) plus their markdown formatters. Pure Python — no direct Odoo access. |
 | **Data Provider** (`src/data/provider.py`) | Backend switch: `DATA_BACKEND=mock` (offline demo data) or `DATA_BACKEND=odoo` (live). Normalizes Odoo records into the same schema the tools already expect. |
 | **Read-Only Gateway** (`src/services/odoo_service.py`) | The *only* module permitted to open an XML-RPC connection to Odoo. Every call is gated through the security layer before it runs. |
@@ -66,17 +88,23 @@ Odoo  (search / search_read / read only)
 
 ## Technology Stack
 
-| Layer | Technology |
-|---|---|
-| Language | Python 3.11+ |
-| UI | Streamlit |
-| AI | OpenAI API (Function Calling) |
-| ERP Integration | Odoo XML-RPC |
-| Data (dev/offline) | In-memory mock dataset |
-| Export | CSV, Excel (openpyxl) |
-| Charts | Streamlit native (`st.bar_chart`) over pandas |
+| Layer | Streamlit prototype | SaaS stack |
+|---|---|---|
+| Language/Runtime | Python 3.11+ | Python 3.11+ (`apps/api`) · Node.js 20 / TypeScript (`apps/web`) |
+| UI | Streamlit | Next.js 16 (App Router, React 19) |
+| API layer | — (in-process call) | FastAPI |
+| Auth | — (none) | Auth.js (NextAuth v5), credentials + JWT sessions |
+| Persistence | — (none, stateless per session) | Prisma 7 + SQLite (`apps/web` conversation history only) |
+| AI | OpenAI API (Function Calling), shared by both | |
+| ERP Integration | Odoo XML-RPC, shared by both | |
+| Data (dev/offline) | In-memory mock dataset, shared by both | |
+| Export | CSV, Excel (openpyxl) | not yet ported to the SaaS stack |
+| Local orchestration | `docker-compose.yml` | `docker-compose.saas.yml` |
 
-No external database, message queue, or vector store — deliberately simple.
+No production database, message queue, or vector store for the business
+logic itself in either stack — `apps/web`'s SQLite database is scoped
+strictly to *who said what*, never Odoo/business data (see
+[`docs/AUTH_AND_PERSISTENCE.md`](docs/AUTH_AND_PERSISTENCE.md)).
 
 ---
 
@@ -280,21 +308,128 @@ The app opens at **http://localhost:8501**.
    python tests/test_security.py
    ```
 
-### Full SaaS Stack (Next.js + FastAPI, Docker Compose)
+### SaaS Stack (Next.js + FastAPI)
 
 A second, additive front end — a Next.js chat UI with login and persistent,
 per-user conversation history — talks to the same `route_query()` through a
-thin FastAPI wrapper (`apps/api`). Both containers run alongside the
-Streamlit app via Docker Compose:
+thin FastAPI wrapper (`apps/api`). It can run either via Docker Compose
+(fastest way to try it) or as two local dev processes (faster iteration
+when actively changing frontend/API code).
+
+**Requirements:** everything the Streamlit path needs, plus Node.js 20+ (for
+`apps/web`).
+
+#### Option A — Docker Compose (recommended for trying it out)
 
 ```bash
 docker compose -f docker-compose.saas.yml build
 docker compose -f docker-compose.saas.yml up
 ```
 
-Web at http://localhost:3000, API at http://localhost:8000. See
-[`docs/DOCKER_SAAS_STACK.md`](docs/DOCKER_SAAS_STACK.md) for required env
-files, the architecture, and troubleshooting.
+Web at http://localhost:3000, API at http://localhost:8000. Requires two
+env files (both git-ignored): `.env` at the repo root (same variables as
+the Streamlit path) and `apps/web/.env.docker` (copy from
+`apps/web/.env.docker.example` — `AUTH_SECRET`, `APP_ACCESS_PASSWORD`).
+Full detail, architecture, and troubleshooting:
+[`docs/DOCKER_SAAS_STACK.md`](docs/DOCKER_SAAS_STACK.md).
+
+#### Option B — Local dev processes (for active development)
+
+Terminal 1 — FastAPI backend, from the repo root:
+
+```bash
+pip install -r requirements-api.txt
+uvicorn apps.api.main:app --reload
+```
+
+Terminal 2 — Next.js frontend:
+
+```bash
+cd apps/web
+npm install
+cp .env.local.example .env.local   # fill in AUTH_SECRET, APP_ACCESS_PASSWORD
+npx prisma migrate dev             # creates apps/web/prisma/dev.db
+npm run dev
+```
+
+Open **http://localhost:3000**. `/` is a public landing page; `/dashboard`
+requires signing in at `/login` (password from `APP_ACCESS_PASSWORD`)
+first.
+
+#### SaaS stack environment variables
+
+`apps/api` reads the same root `.env` as the Streamlit app (see
+[Environment Variables](#environment-variables) above) — no separate
+config. `apps/web` needs its own (`.env.local` for local dev,
+`.env.docker` for Docker Compose — see
+[`apps/web/.env.local.example`](apps/web/.env.local.example)):
+
+| Variable | Purpose |
+|---|---|
+| `NEXT_PUBLIC_API_BASE_URL` | Where the *browser* reaches the FastAPI backend. Default `http://localhost:8000`. |
+| `AUTH_SECRET` | Signs the session JWT. Generate with `npx auth secret`. |
+| `APP_ACCESS_PASSWORD` | The single shared login password. Unset → login always fails. |
+| `DATABASE_URL` | SQLite path for conversation history. `.env` (local dev) uses `file:./prisma/dev.db`; Docker Compose sets `file:/data/conversations.db` (a persistent volume) directly in `docker-compose.saas.yml`. |
+
+Full detail: [`docs/AUTH_AND_PERSISTENCE.md`](docs/AUTH_AND_PERSISTENCE.md).
+
+#### SaaS stack test/build/lint commands
+
+```bash
+cd apps/web
+npm run lint     # ESLint
+npm run build    # production build (also type-checks)
+npm run test     # Vitest — unit + component tests, isolated test SQLite db
+
+cd ../..          # repo root
+python -m pytest apps/api/tests -v      # FastAPI layer
+python -m py_compile apps/api/main.py   # syntax check
+```
+
+See [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md) for the endpoints these
+exercise.
+
+---
+
+## Testing
+
+All test commands, in one place — every one of these is re-run before any
+change to this project is committed.
+
+**Core business logic** (mock-data integrity, read-only security
+enforcement, date-filter parsing — shared by both front ends):
+```bash
+python tests/test_provider.py
+python tests/test_security.py
+python tests/test_date_filters.py
+python test_routing.py            # end-to-end rule-based routing smoke test
+```
+Or, since these are also pytest-compatible:
+```bash
+python -m pytest tests/ -v
+```
+
+**Against a real Odoo connection** (manual, needs real credentials in `.env`):
+```bash
+python tests/test_odoo_connection.py
+```
+
+**FastAPI backend** (`apps/api`):
+```bash
+python -m pytest apps/api/tests -v
+python -m py_compile app.py apps/api/main.py
+```
+
+**Next.js frontend** (`apps/web`):
+```bash
+cd apps/web
+npm run lint
+npm run build
+npm run test
+```
+
+None of these require Docker or a live Odoo connection except
+`test_odoo_connection.py` — the full suite runs offline against mock data.
 
 ---
 
@@ -303,17 +438,24 @@ files, the architecture, and troubleshooting.
 ```
 odoo-ai-agent/
 ├── app.py                          # Streamlit UI (presentation only)
-├── requirements.txt
+├── requirements.txt · requirements-api.txt
 ├── .env.example
-├── README.md · SECURITY_REVIEW.md · DEMO.md · PRODUCTION_CHECKLIST.md
+├── Dockerfile · docker-compose.yml           # Streamlit container path
+├── docker-compose.saas.yml                   # api + web, Docker Compose
+├── README.md · SECURITY_REVIEW.md · DEMO.md · PRODUCTION_CHECKLIST.md · DEPLOYMENT.md
 │
 ├── docs/
 │   ├── ODOO_READONLY_USER.md       # Primary security control setup
 │   ├── TOOLS.md                    # Full tool reference
 │   ├── USER_GUIDE.md               # Example prompts by category
+│   ├── SAAS_MIGRATION_PLAN.md      # Full migration history, phase-by-phase
+│   ├── DOCKER_SAAS_STACK.md        # docker-compose.saas.yml reference
+│   ├── API_CONTRACT.md             # apps/api endpoint reference
+│   ├── AUTH_AND_PERSISTENCE.md     # apps/web login + conversation storage
+│   ├── NEXT_PHASES.md              # What's next, what's deliberately not built yet
 │   └── PHASE_1_REVIEW.md           # Historical: original MVP milestone
 │
-├── src/
+├── src/                             # Business logic — shared by both front ends
 │   ├── data/
 │   │   ├── mock_data.py            # Offline demo dataset
 │   │   └── provider.py             # mock/odoo backend switch + normalization
@@ -343,7 +485,20 @@ odoo-ai-agent/
 ├── tests/
 │   ├── test_provider.py · test_security.py
 │   ├── test_date_filters.py · test_odoo_connection.py
-└── test_routing.py                 # End-to-end rule-based routing smoke test
+├── test_routing.py                 # End-to-end rule-based routing smoke test
+│
+├── apps/
+│   ├── api/                        # FastAPI backend — thin HTTP wrapper, no logic
+│   │   ├── main.py · schemas.py · Dockerfile
+│   │   └── tests/test_api.py
+│   │
+│   └── web/                        # Next.js frontend — chat UI, auth, persistence
+│       ├── app/                    # Pages + Server Actions (auth, conversations)
+│       ├── components/             # Sidebar, ConversationList, chat UI
+│       ├── lib/                    # API client, history filter, Prisma client
+│       ├── prisma/                 # schema.prisma + migrations
+│       ├── Dockerfile · docker-entrypoint.sh
+│       └── tests/                  # Vitest — unit + component tests
 ```
 
 ---
@@ -374,6 +529,32 @@ odoo-ai-agent/
 - Multi-currency-aware formatting driven by the Odoo company record.
 - Broader natural-language date coverage (fiscal-year-aware periods).
 - Automated screenshot generation for documentation.
+
+For the SaaS stack's own roadmap (real user accounts, production hosting,
+rate limiting, and what should deliberately **not** be built yet), see
+[`docs/NEXT_PHASES.md`](docs/NEXT_PHASES.md).
+
+---
+
+## Deployment
+
+**Streamlit prototype** — Streamlit Community Cloud (recommended), Railway,
+Render, Cloud Run, or a Docker+VPS setup. Full walkthrough, platform
+comparison, and environment variables: [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
+**SaaS stack (`apps/web` + `apps/api`)** — `docker-compose.saas.yml` is
+**local development/testing tooling only**; it has not been deployed to a
+public host. Production deployment (a real domain, TLS, secrets
+management, and very likely a Postgres migration for `apps/web`'s
+conversation database — the schema is already designed for that move) is
+explicitly a future phase, not yet started. See
+[`docs/DOCKER_SAAS_STACK.md`](docs/DOCKER_SAAS_STACK.md) for the current
+local setup and [`docs/NEXT_PHASES.md`](docs/NEXT_PHASES.md) for the risks
+to address before any public launch.
+
+Neither deployment path changes `src/`, `route_query()`, or the read-only
+Odoo security model — deployment is purely about how each UI is hosted and
+reached, never about what the assistant is allowed to do.
 
 ---
 

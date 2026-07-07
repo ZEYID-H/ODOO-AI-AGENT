@@ -1,6 +1,11 @@
 # SaaS Migration Plan — Streamlit Prototype → Next.js + FastAPI
 
-**Status:** Phase 8A (discovery + plan). No code changed by this document.
+**Status:** Migration complete through Phase 8H (documentation
+finalization). See §8 for the phase checklist, §11 for what each phase
+actually shipped (including deviations from the plan below), and §12 for
+the resulting architecture. Sections 1–7 below are preserved as originally
+written, at the start of the migration (Phase 8A) — they're the plan, not
+a live status; §11/§12 are the after-the-fact record.
 **Principle throughout:** the existing Python business logic in `src/` is the
 asset being protected, not replaced. Every later phase wraps it; none of them
 rewrite it.
@@ -266,17 +271,27 @@ Simplest safe option for personal/internal use, no database:
 
 ## 8. Phase Checklist
 
-- [ ] **8A** — Discovery + this plan. *(current phase)*
-- [ ] **8B** — FastAPI backend skeleton wrapping `route_query()`.
-- [ ] **8C** — Next.js frontend skeleton (no live API calls except optional health check).
-- [ ] **8D** — Connect Next.js chat + quick actions to `POST /chat`.
-- [ ] **8E** — Single-password personal access control (frontend + API gate).
-- [ ] **8F** — `docker-compose.saas.yml` for the full new stack, alongside the untouched Streamlit compose path.
-- [ ] **8G** — Documentation update (`README.md`, `DEPLOYMENT.md`, this plan) reflecting the shipped SaaS stack.
+- [x] **8A** — Discovery + this plan.
+- [x] **8B** — FastAPI backend skeleton wrapping `route_query()`.
+- [x] **8C** — Next.js frontend skeleton (shipped fully wired to `POST /chat`, ahead of the original 8C/8D split — see §11).
+- [x] **8D** — Frontend/API stabilization and integration hardening (bounded history, consolidated error display, double-submit guards).
+- [x] **8E** — Single-password personal access control (Auth.js credentials + JWT, server-side `/dashboard` guard).
+- [x] **8F** — Conversation persistence (Prisma + SQLite, per-user CRUD, sidebar UI).
+- [x] **8G** — `docker-compose.saas.yml` for the full new stack, alongside the untouched Streamlit compose path.
+- [x] **8H** — Documentation finalization and migration wrap-up *(this phase — see §11–§12)*.
 
-Explicitly deferred beyond 8G: billing, multi-tenant, organizations/teams,
+Note: this plan originally numbered the Docker Compose phase 8F and the
+documentation phase 8G (see the original text preserved in §7). In
+execution, conversation persistence turned out to need its own phase and
+was inserted as 8F, pushing Docker Compose to 8G and documentation to 8H.
+The scope described in each lettered phase below still matches what was
+built under that letter at the time it ran; only the two trailing letters
+shifted. See §11 for the full actual-vs-planned account.
+
+Explicitly deferred beyond 8H: billing, multi-tenant, organizations/teams,
 production auth beyond the single-password gate, admin dashboard, scheduled
-jobs/reports, database persistence, Redis, production cloud deployment.
+jobs/reports, Redis, production cloud deployment. Full detail and reasoning
+in `docs/NEXT_PHASES.md`.
 
 ---
 
@@ -295,9 +310,139 @@ jobs/reports, database persistence, Redis, production cloud deployment.
 
 ---
 
-## 10. Non-Goals (through Phase 8G)
+## 10. Non-Goals (through Phase 8H)
 
-Explicitly not implemented until a later, separate phase: Stripe/billing,
-subscription plans, multiple organizations, multiple Odoo tenants, user
-roles, admin dashboard, email/WhatsApp reports, scheduled jobs, database
-persistence, Redis/queues, production cloud deployment.
+Explicitly not implemented, still: Stripe/billing, subscription plans,
+multiple organizations, multiple Odoo tenants, user roles, admin dashboard,
+email/WhatsApp reports, scheduled jobs, Redis/queues, production cloud
+deployment. (Database persistence for conversations *was* built — Phase
+8F, see §11 — but only for `apps/web`'s own conversation history, never for
+Odoo business data, and never as multi-tenant storage.) Sequencing and
+risk detail for whatever comes next: `docs/NEXT_PHASES.md`.
+
+---
+
+## 11. Actual Implementation Summary (Phases 8B–8H)
+
+What follows is a factual account of what each phase actually shipped,
+written after the fact — a supplement to, not a replacement for, the
+phase-by-phase reports each phase's commit message and conversation record
+already contain in full detail.
+
+### 8B — FastAPI backend
+
+Shipped exactly as planned in §4, with one field-naming refinement made
+in-the-moment rather than left as this document's earlier draft shape:
+`/chat` takes `{query, history}` and returns `{success, tool, parameters,
+result}` — not the `{message}` / `{answer, tool_used, success}` shapes
+floated in early drafts of §4. `pytest` was added to
+`requirements-api.txt` per the §1.5 recommendation, so
+`python -m pytest apps/api/tests -v` works as every later phase's
+validation step assumes.
+
+### 8C/8D — Next.js frontend
+
+**Deviation from §5's original phasing**: §5 planned 8C as a UI skeleton
+with *no* live `/chat` wiring, deferring that to 8D. In execution, 8C's
+own governing instructions required the frontend to call `/health`,
+`/tools`, **and** `/chat` — so 8C shipped a fully wired chat UI, and 8D
+became stabilization/hardening (bounded history, consolidated error
+display, double-submit guards, expanded test coverage) rather than initial
+wiring. Functionally nothing was skipped; the UI skeleton and the live
+wiring simply landed in the same phase instead of two.
+
+### 8E — Authentication
+
+Built as §6 anticipated: single shared password via `APP_ACCESS_PASSWORD`,
+no database. One refinement: §6 left open whether the check should be a
+FastAPI endpoint or a Next.js-side mechanism; it landed entirely on the
+Next.js side (Auth.js, JWT sessions, a Server Component guard —
+`docs/AUTH_AND_PERSISTENCE.md`), so `apps/api` has zero knowledge of users
+or sessions, keeping that service's stated scope (§1.7) intact. Also
+discovered and worked around: Next.js 16 renamed Middleware to Proxy and
+documents it as insufficient as a sole authorization layer — the
+`/dashboard` guard is a server-side check in the page component itself
+(`requireSession()`), not a `proxy.ts`.
+
+### 8F — Conversation persistence (not in the original lettered plan)
+
+**Addition, not a deviation**: §8's original checklist had no phase for
+per-user conversation history — Docker Compose and documentation were
+originally 8F and 8G. A dedicated persistence phase was inserted as 8F
+once it became clear "SaaS" implied users' conversations should survive a
+page reload. Built with Prisma 7 + SQLite (via a `libsql` driver adapter —
+Prisma 7 requires an explicit adapter, a real API change from earlier
+Prisma versions), scoped strictly to conversation bookkeeping
+(`role`/`content`/`timestamp` only — no tool internals). Full detail:
+`docs/AUTH_AND_PERSISTENCE.md`.
+
+### 8G — Docker Compose (originally planned as 8F)
+
+Built as §7 anticipated: `docker-compose.saas.yml` running `api` + `web`
+alongside the untouched Streamlit path. One real bug was found and fixed
+only by actually running the stack end-to-end (not caught by any unit
+test, which mock `revalidatePath`): the dashboard's auto-create-first-
+conversation logic called a Server Action that revalidates its own route
+mid-render, which Next.js 16 forbids. Also required `AUTH_TRUST_HOST=true`
+in the container specifically — Auth.js's automatic host-trust fallback
+only applies when `NODE_ENV !== "production"`, true for local dev but not
+for the container's `next start`. Full detail: `docs/DOCKER_SAAS_STACK.md`.
+
+### 8H — Documentation (originally planned as 8G)
+
+This phase. No code behavior changes beyond fixing stale UI copy on the
+public landing page (`apps/web/app/page.tsx`) that had been left over from
+before Phase 8E's login gate shipped.
+
+---
+
+## 12. Current Architecture (Post-Migration)
+
+```
+                          Browser
+                             │
+              ┌──────────────┴──────────────┐
+              ▼                              ▼
+     Streamlit UI (app.py)          Next.js UI (apps/web)
+     — in-process call —            — login, conversation
+              │                       history, chat UI —
+              │                              │
+              │                    POST /chat, GET /health,
+              │                    GET /tools (browser → published
+              │                    host port, see DOCKER_SAAS_STACK.md)
+              │                              │
+              │                              ▼
+              │                    FastAPI (apps/api) — thin wrapper,
+              │                    zero business logic of its own
+              │                              │
+              └──────────────┬───────────────┘
+                              ▼
+                    route_query()  [src/agent/router.py — UNCHANGED]
+                              │
+                              ▼
+                    TOOL_REGISTRY  [src/agent/tool_registry.py — UNCHANGED]
+                              │
+                              ▼
+                    src/tools/*  [UNCHANGED]
+                              │
+                              ▼
+                    Odoo read-only gateway  [UNCHANGED]
+                              │
+                              ▼
+                            Odoo
+```
+
+Two independent front doors, one unchanged core. Neither UI duplicates any
+business/analytics logic; both ultimately call the identical
+`route_query()`. `apps/web` additionally owns a concern `app.py` never had
+— who's asking, and what did they say — via Auth.js (JWT sessions) and
+Prisma/SQLite (per-user conversation history), both entirely separate from,
+and unaware of, Odoo/business data. Full detail:
+`docs/AUTH_AND_PERSISTENCE.md`, `docs/API_CONTRACT.md`,
+`docs/DOCKER_SAAS_STACK.md`.
+
+**What did not change, verified at every phase**: `src/`, `route_query()`,
+the tool registry, every business tool, and the three-layer Odoo read-only
+security model. Every phase's validation included `git diff --stat --
+src/` (and later `app.py`, `apps/api/main.py`, `apps/api/schemas.py`)
+staying empty, and `tests/test_security.py` passing unchanged.

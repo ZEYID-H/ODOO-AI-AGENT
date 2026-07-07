@@ -27,9 +27,8 @@ export default function Home() {
         </div>
 
         {/*
-          Placeholder entry point — no real authentication yet.
-          Phase 8E adds a proper login gate (single shared password) in
-          front of this route; today it links straight through.
+          /dashboard is server-side gated (lib/session-guard.ts) — an
+          unauthenticated click here lands on /login, not the dashboard.
         */}
         <Link
           href="/dashboard"
@@ -39,7 +38,7 @@ export default function Home() {
         </Link>
 
         <p className="text-xs text-ink-dim pt-4">
-          Personal-use preview — access control coming in a later phase.
+          Personal-use preview — single shared password, no multi-user accounts.
         </p>
       </div>
     </main>
