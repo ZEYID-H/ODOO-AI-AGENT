@@ -347,7 +347,7 @@ Terminal 2 — Next.js frontend:
 ```bash
 cd apps/web
 npm install
-cp .env.local.example .env.local   # fill in AUTH_SECRET, APP_ACCESS_PASSWORD
+cp .env.local.example .env.local   # fill in AUTH_SECRET, APP_ACCESS_PASSWORD, API_AUTH_SECRET
 npx prisma migrate dev             # creates apps/web/prisma/dev.db
 npm run dev
 ```
@@ -369,9 +369,13 @@ config. `apps/web` needs its own (`.env.local` for local dev,
 | `NEXT_PUBLIC_API_BASE_URL` | Where the *browser* reaches the FastAPI backend. Default `http://localhost:8000`. |
 | `AUTH_SECRET` | Signs the session JWT. Generate with `npx auth secret`. |
 | `APP_ACCESS_PASSWORD` | The single shared login password. Unset → login always fails. |
+| `API_AUTH_SECRET` | Signs the short-lived token `apps/web` uses to prove its identity to `apps/api` on every `/chat`/`/tools` call. **Must exactly match** the same variable in the root `.env` — it's one shared secret between the two services, not two independent ones. Generate with `openssl rand -base64 32`. |
 | `DATABASE_URL` | SQLite path for conversation history. `.env` (local dev) uses `file:./prisma/dev.db`; Docker Compose sets `file:/data/conversations.db` (a persistent volume) directly in `docker-compose.saas.yml`. |
 
-Full detail: [`docs/AUTH_AND_PERSISTENCE.md`](docs/AUTH_AND_PERSISTENCE.md).
+Full detail: [`docs/AUTH_AND_PERSISTENCE.md`](docs/AUTH_AND_PERSISTENCE.md)
+(user-facing login) and
+[`docs/API_AUTHENTICATION.md`](docs/API_AUTHENTICATION.md) (the
+`apps/web` ↔ `apps/api` trust boundary).
 
 #### SaaS stack test/build/lint commands
 

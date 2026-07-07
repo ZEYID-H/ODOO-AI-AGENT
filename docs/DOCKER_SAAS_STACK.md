@@ -52,12 +52,18 @@ via ports mapped to `localhost`. See the comments in
 
 | File | Copy from | Contains |
 |---|---|---|
-| `.env` (repo root) | `.env.example` | `OPENAI_API_KEY`, `DATA_BACKEND`, `ODOO_*` — same variables the Streamlit app already uses |
+| `.env` (repo root) | `.env.example` | `OPENAI_API_KEY`, `DATA_BACKEND`, `ODOO_*` (same variables the Streamlit app already uses) plus `API_AUTH_SECRET` (Phase 10) |
 | `apps/web/.env.docker` | `apps/web/.env.docker.example` | `AUTH_SECRET`, `APP_ACCESS_PASSWORD` |
 
 Everything else (the SQLite path, the internal API URL, `AUTH_TRUST_HOST`)
 is set directly in `docker-compose.saas.yml` — it isn't secret, so it's
-tracked in git rather than duplicated across env files.
+tracked in git rather than duplicated across env files. `API_AUTH_SECRET`
+is a special case: secret, but *shared* between both containers (`web`
+signs a token with it, `api` verifies it) — set once in the root `.env`,
+`docker-compose.saas.yml` injects that same value into `web` too via
+variable substitution. See
+[`API_AUTHENTICATION.md`](API_AUTHENTICATION.md) for why, and for what
+this token actually protects against.
 
 `DATA_BACKEND` defaults to `mock` if unset, so the stack runs fully offline
 (no Odoo, no real ERP data) out of the box. Set `DATA_BACKEND=odoo` plus the
@@ -191,6 +197,7 @@ capability restriction (see Troubleshooting).
 | `DATA_BACKEND` | api | `.env` | `mock` (default) or `odoo` |
 | `ODOO_URL`, `ODOO_DB`, `ODOO_USERNAME`, `ODOO_PASSWORD`, `EXPECTED_ODOO_USER` | api | `.env` | Only needed when `DATA_BACKEND=odoo` |
 | `CORS_ALLOWED_ORIGINS` | api | `.env` | Optional, comma-separated, defaults to `http://localhost:3000` |
+| `API_AUTH_SECRET` | api + web | `.env` (root; `web` gets it via Compose variable substitution) | **Required** in both — signs/verifies the Phase 10 inter-service token. Same value in both or every `/chat`/`/tools` call gets `401`. |
 | `NEXT_PUBLIC_API_BASE_URL` | web (build arg) | shell env or defaults to `http://localhost:8000` | Baked into the browser bundle — must be host-reachable, not a compose service name |
 | `DATABASE_URL` | web | `docker-compose.saas.yml` | Points at the mounted volume: `file:/data/conversations.db` |
 | `AUTH_TRUST_HOST` | web | `docker-compose.saas.yml` | Must be `true` in this container — Auth.js's automatic dev-mode host trust doesn't apply once `NODE_ENV=production` |
@@ -241,6 +248,16 @@ capability restriction (see Troubleshooting).
 - **`/chat` starts returning 429**: the global rate limiter allows 30
   requests/60s (`docs/API_CONTRACT.md`). Wait a minute, or restart `api`
   to clear the in-memory counter immediately.
+- **`/chat` or `/tools` return `401` (Phase 10)**: almost always
+  `API_AUTH_SECRET` mismatched or missing on one side. Check both:
+  `docker compose -f docker-compose.saas.yml exec api env | grep
+  API_AUTH_SECRET` and `... exec web env | grep API_AUTH_SECRET` — they
+  must be identical. If `api`'s is empty, check the root `.env`; if
+  `web`'s is empty, Compose's variable substitution didn't pick it up
+  (confirm the root `.env` was present *before* running `up`, and that you
+  didn't only set it in `apps/web/.env.docker` — see
+  [`API_AUTHENTICATION.md`](API_AUTHENTICATION.md) for why that file isn't
+  where this one goes).
 - **`web` crash-loops with `Error: SQLite database error / attempt to
   write a readonly database` after adding a new Prisma migration**: this
   happened once during Phase 9's own follow-up work, on a

@@ -9,8 +9,18 @@
 #   api:   http://localhost:8000  (docs at /docs)
 #
 # Env files required (both git-ignored — see the matching *.example files):
-#   .env                 (repo root)   — OPENAI_API_KEY, DATA_BACKEND, ODOO_*
+#   .env                 (repo root)   — OPENAI_API_KEY, DATA_BACKEND, ODOO_*,
+#                                         API_AUTH_SECRET
 #   apps/web/.env.docker                — AUTH_SECRET, APP_ACCESS_PASSWORD
+#
+# API_AUTH_SECRET (Phase 10 — see docs/API_AUTHENTICATION.md) is a secret
+# *shared* between both containers: apps/web signs a short-lived token with
+# it, apps/api verifies that signature before running /chat or /tools. Set
+# it once in the repo-root .env; `web`'s `environment:` block below pulls
+# that same value in via Compose's own variable substitution (reading the
+# root .env is automatic — no env_file entry needed for that part), so
+# there's exactly one place to set or rotate it, not two files to keep in
+# sync by hand.
 #
 # Networking note: `web`'s browser-side code (lib/api.ts, called from
 # client components) fetches the API directly from the user's browser, not
@@ -30,9 +40,12 @@ services:
     ports:
       # Bound to 127.0.0.1 explicitly (Phase 9 audit finding): the bare
       # "8000:8000" form binds to ALL host network interfaces by default,
-      # meaning apps/api — which has no authentication of its own; see
-      # docs/API_CONTRACT.md — would be reachable from any other device on
-      # the same LAN, not just this machine. This stack is documented as
+      # meaning apps/api would be reachable from any other device on the
+      # same LAN, not just this machine. Phase 10 added real
+      # cryptographic auth for /chat and /tools (docs/API_AUTHENTICATION.md)
+      # — this loopback restriction is now defense-in-depth on top of
+      # that, not the only thing standing between apps/api and the
+      # network, but it's kept regardless: this stack is documented as
       # local-only tooling where the browser runs on the same host as the
       # containers (see the networking note above), so restricting to
       # loopback matches the actual intended usage with no behavior change.
@@ -73,6 +86,10 @@ services:
       # docker-entrypoint.sh's startup readiness wait; browser-side fetches
       # never use this (see the note above).
       API_INTERNAL_URL: http://api:8000
+      # Same value as api's API_AUTH_SECRET (env_file below), sourced from
+      # the repo-root .env via Compose's automatic variable substitution —
+      # see the top-of-file comment.
+      API_AUTH_SECRET: ${API_AUTH_SECRET}
     env_file:
       - ./apps/web/.env.docker
     volumes:

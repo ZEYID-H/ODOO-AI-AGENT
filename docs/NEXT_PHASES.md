@@ -1,17 +1,18 @@
 # Next Phases — Recommendations and Risks
 
-**Status as of the Phase 9 follow-up:** the SaaS migration (Streamlit
-prototype → Next.js + FastAPI + Docker Compose, with login and per-user
-conversation persistence) is functionally complete and locally validated;
-Phase 9 was a production-readiness audit that fixed the Critical/High
-findings in place (see `docs/AUDIT_PHASE_9.md`). A follow-up pass then
-implemented most of the previously-documented-only Medium/Low findings
-too: CORS is now configurable, `/chat` is now rate-limited by frequency
-(not just size), baseline security headers were added, a CI workflow now
-runs the full validation suite on every push, and containers now drop all
-Linux capabilities. What follows is a forward-looking recommendation, not
-a commitment — nothing here is scheduled or approved. See
-`docs/SAAS_MIGRATION_PLAN.md` §11 for what was actually built through
+**Status as of Phase 10:** the SaaS migration (Streamlit prototype →
+Next.js + FastAPI + Docker Compose, with login and per-user conversation
+persistence) is functionally complete and locally validated; Phase 9 was a
+production-readiness audit that fixed the Critical/High findings in place
+(see `docs/AUDIT_PHASE_9.md`), a follow-up pass then implemented most of
+the previously-documented-only Medium/Low findings (CORS configurability,
+`/chat` frequency rate limiting, security headers, CI, container
+hardening), and Phase 10 closed the single biggest item left standing:
+`apps/api` now cryptographically verifies every `/chat`/`/tools` caller
+instead of trusting anyone who can reach it on the network (see
+`docs/API_AUTHENTICATION.md`). What follows is a forward-looking
+recommendation, not a commitment — nothing here is scheduled or approved.
+See `docs/SAAS_MIGRATION_PLAN.md` §11 for what was actually built through
 Phase 8H and any deviations from the original plan.
 
 This document exists so the next decision — "what do we build next" — is
@@ -27,10 +28,13 @@ momentum.
 2. **Real user accounts** — replace the single shared password
    (`APP_ACCESS_PASSWORD`) with actual per-user credentials. The codebase
    is already shaped for this: `lib/auth-credentials.ts`'s `authorize()`
-   already returns a `User` object, and `Conversation`/`Message` ownership
-   is already a real foreign key to `User.id`, not a loose string match
-   (see `docs/AUTH_AND_PERSISTENCE.md`). This is the highest-leverage next
-   step — most other user-facing improvements assume real accounts exist.
+   already returns a `User` object, `Conversation`/`Message` ownership is
+   already a real foreign key to `User.id`, and — since Phase 10 — the
+   inter-service JWT's `sub` claim already carries whatever id Auth.js's
+   session produces, no redesign needed there either (see
+   `docs/API_AUTHENTICATION.md`'s "Compatibility with future
+   multi-user/roles" section). This is the highest-leverage next step —
+   most other user-facing improvements assume real accounts exist.
 3. **Postgres migration for `apps/web`'s database** — the Prisma schema was
    deliberately designed to make this a `provider`/`DATABASE_URL` change,
    not a data-model change. Needed before any deployment with more than one
@@ -47,13 +51,15 @@ momentum.
    only structured logging that exists right now, and it's Odoo-specific.
 6. **Production deployment of the SaaS stack** — `docker-compose.saas.yml`
    is local-only by design (see `docs/DOCKER_SAAS_STACK.md`). A real
-   deployment needs: a real domain + TLS, secrets management (not `.env`
-   files), the Postgres migration above, **inter-service authentication
-   for `apps/api`** (Phase 9 audit finding: it currently trusts any caller
-   that can reach it — safe only because both services are on the same
-   loopback interface today, see the risk table below), and a decision on
-   hosting (Vercel for `apps/web`, a container host for `apps/api`,
-   matching the original plan in `docs/SAAS_MIGRATION_PLAN.md` §7).
+   deployment needs: a real domain + TLS (the Phase 10 auth token proves
+   *identity*, not *confidentiality in transit* — see
+   `docs/API_AUTHENTICATION.md`'s threat model), secrets management (not
+   `.env` files), the Postgres migration above, a real
+   `API_AUTH_SECRET`-rotation story if this is ever horizontally scaled
+   (see `docs/API_AUTHENTICATION.md`'s rotation section — not implemented
+   yet, deliberately), and a decision on hosting (Vercel for `apps/web`, a
+   container host for `apps/api`, matching the original plan in
+   `docs/SAAS_MIGRATION_PLAN.md` §7).
 7. **Conversation list UX at scale** — pagination/search once a user has
    more than a screenful of conversations (today's sidebar loads everything
    unbounded).
@@ -100,7 +106,9 @@ running on my machine" and becomes something other people log into.
 
 | Risk | Why it matters | Where it's tracked |
 |---|---|---|
-| **`apps/api` has no authentication of its own** | Every endpoint (`/chat` included) trusts any caller who can reach it — `apps/web`'s login gate is the *only* access control in the whole system. Fine when both are reached only via `127.0.0.1` on one machine (Phase 9 restricted `docker-compose.saas.yml`'s port bindings to loopback specifically because of this — see `docs/DOCKER_SAAS_STACK.md`); would need real inter-service auth (a shared secret header, mTLS, or network-level isolation) before `apps/api` could ever be reachable from anywhere but the same host as `apps/web`. Deliberately not attempted as a quick audit-phase patch — it's a design decision, not a bug fix. | `docs/API_CONTRACT.md`, `docs/AUDIT_PHASE_9.md` |
+| Inter-service auth token transits the browser | `apps/api`'s Phase 10 token is attached client-side (`lib/api.ts` calls `apps/api` directly from the browser), so it's visible in the Network tab / to any script with page access. Bounded by a 5-minute lifetime, and this codebase has no XSS vector today (verified: no `dangerouslySetInnerHTML`, no `rehype-raw`) — but it is not zero exposure, and a full server-side-proxy redesign (never sending the token client-side at all) was explicitly out of scope for Phase 10 | `docs/API_AUTHENTICATION.md` (Threat model) |
+| No authorization model beyond authentication | Phase 10 verifies *identity* (is this a genuine caller); every valid token still asserts the same single account, so there's no per-user permission distinction to make yet — not a gap so much as "nothing to attach roles to until real accounts (item 2 above) exist" | `docs/API_AUTHENTICATION.md` |
+| `API_AUTH_SECRET` has no rotation mechanism | Rotating today means updating both services and accepting a brief (sub-5-minute, self-healing) window of failed requests — fine for the current single-operator model, not for a zero-downtime production requirement | `docs/API_AUTHENTICATION.md` (Rotation strategy) |
 | Single shared password | Anyone who has it has full access to everything; no per-user isolation, no revocation without changing the password for everyone | `docs/AUTH_AND_PERSISTENCE.md` |
 | Login *and* `/chat` rate limiting are per-process, not distributed | Both are now enforced (5 login attempts/60s in `authorize()`; 30 `/chat` calls/60s in `apps/api/main.py`), but both are in-memory: resets on restart, doesn't coordinate across multiple instances | `docs/AUTH_AND_PERSISTENCE.md`, `docs/API_CONTRACT.md` |
 | SQLite under concurrent load | File-based SQLite does not safely coordinate writes across multiple processes/instances the way a real production database needs to | `docs/AUTH_AND_PERSISTENCE.md` |
@@ -109,9 +117,14 @@ running on my machine" and becomes something other people log into.
 | Odoo read-only guarantee under new load patterns | Not weakened by anything in this migration (verified per-phase via `git diff --stat -- src/` staying empty and `tests/test_security.py` passing unchanged) — but worth re-verifying against real production traffic patterns before trusting it at scale | `SECURITY_REVIEW.md` |
 
 Resolved since the table above was first written: CORS is now
-configurable (`CORS_ALLOWED_ORIGINS`, defaults to `localhost:3000`), and
+configurable (`CORS_ALLOWED_ORIGINS`, defaults to `localhost:3000`),
 baseline security headers (`X-Frame-Options`, `X-Content-Type-Options`,
-`Referrer-Policy`) are now set on every `apps/web` response.
+`Referrer-Policy`) are now set on every `apps/web` response, and — the
+biggest one — `apps/api` no longer trusts callers based on network access
+alone; every `/chat`/`/tools` request now carries a cryptographically
+verified, short-lived token (Phase 10, `docs/API_AUTHENTICATION.md`). The
+residual risks from *that* change are the first three rows of the table
+above, not a repeat of the original finding.
 
 None of these are urgent for continued personal/internal use of either
 front end. They become urgent the moment "who can log in" expands beyond

@@ -21,10 +21,26 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 import apps.api.main as api_main
+from apps.api.auth import AuthenticatedUser, require_auth
 from apps.api.main import app, filter_history, _OMITTED_NOTE
 from apps.api.schemas import ChatMessage, ChatRequest
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _bypass_auth():
+    """This file tests /chat and /tools's OWN behavior (routing, history
+    filtering, size limits, rate limiting) — not authentication itself,
+    which has its own dedicated, thorough test file (test_auth.py) that
+    exercises the real require_auth dependency with real tokens. Using
+    FastAPI's own dependency_overrides mechanism here is the standard,
+    documented way to bypass a dependency for tests that are about
+    something else, rather than minting a real token in every single test
+    in this file."""
+    app.dependency_overrides[require_auth] = lambda: AuthenticatedUser(user_id="test-user")
+    yield
+    app.dependency_overrides.pop(require_auth, None)
 
 
 @pytest.fixture(autouse=True)

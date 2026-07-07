@@ -10,6 +10,18 @@ Base URL locally: `http://localhost:8000` (both `npm run dev` and the
 Docker Compose stack). Interactive/generated docs: `GET /docs`
 (Swagger UI, from FastAPI automatically).
 
+**Authentication (Phase 10)**: `/chat` and `/tools` require a signed
+bearer token; `/health` does not. See
+[`API_AUTHENTICATION.md`](API_AUTHENTICATION.md) for the full design
+(token format, algorithm, lifetime, key management) — this file only
+documents the per-endpoint *requirement* and *error shape*.
+
+| Endpoint | Auth required? |
+|---|---|
+| `GET /health` | No — liveness probe, see below |
+| `GET /tools` | **Yes** |
+| `POST /chat` | **Yes** |
+
 ---
 
 ## `GET /health`
@@ -18,6 +30,12 @@ Liveness probe. Used by: Docker's `HEALTHCHECK` (`apps/api/Dockerfile`),
 `docker-compose.saas.yml`'s `depends_on: condition: service_healthy`,
 `apps/web/docker-entrypoint.sh`'s internal-network readiness wait, and the
 frontend's connection-status indicator (`lib/api.ts::getHealth`).
+
+**Deliberately unauthenticated**: Docker's own healthcheck calls this from
+*inside* the container, with no token and no way to obtain one. It reveals
+no business data — a static status string only — so leaving it open is
+the standard, widely-accepted exception for liveness/readiness probes, not
+an oversight.
 
 **Response `200`:**
 ```json
@@ -34,7 +52,7 @@ refused) — this endpoint does not touch `route_query()`, Odoo, or OpenAI.
 Lists the tools currently registered in `TOOL_REGISTRY`
 (`src/agent/tool_registry.py`) — names and a count only, never a function
 reference or anything callable. Used by the frontend's sidebar
-("Tools available: N").
+("Tools available: N"). **Requires authentication** (see below).
 
 **Response `200`:**
 ```json
@@ -58,7 +76,7 @@ can actually route to, because both use the same `TOOL_REGISTRY` object.
 ## `POST /chat`
 
 The one endpoint that does real work — everything else is bookkeeping
-around this call.
+around this call. **Requires authentication** (see below).
 
 **Request:**
 ```json
@@ -134,6 +152,14 @@ how this interacts with database-reloaded conversation history.
   a moment and try again."}` after 30 requests within a rolling 60-second
   window, enforced globally (see below). `lib/api.ts`'s existing `detail`
   parsing surfaces this message without any frontend changes.
+- **Authentication failed** (Phase 10; `/chat` and `/tools` only): `401`
+  with `{"detail": "<specific reason>"}` — one of `"Missing authentication
+  token"`, `"Malformed authentication token"`, `"Authentication token has
+  expired"`, `"Invalid authentication token"`, or `"Authentication is not
+  configured"` (the server-side fail-closed case, if `API_AUTH_SECRET`
+  isn't set). Also carries a `WWW-Authenticate: Bearer` header, per HTTP
+  convention for 401 responses. See
+  [`API_AUTHENTICATION.md`](API_AUTHENTICATION.md).
 
 ---
 
@@ -150,13 +176,15 @@ configuration change, not a code change.
 
 ## Rate limiting on `/chat`
 
-Global (not per-caller — this API has no concept of "who is asking," see
-below), in-memory sliding window: max 30 requests per rolling 60 seconds.
-Exceeding it returns `429` (see Error behavior above). This closes the
-*frequency* gap deliberately left open when request *size* was bounded —
-an authenticated `apps/web` session (or, since this API has no auth of its
-own, literally anyone who can reach it) could otherwise call `/chat` as
-fast as the network allows, each call costing a real OpenAI request.
+Global, not per-caller — even though every request is now authenticated
+(Phase 10), the limiter deliberately still isn't keyed by user: today
+there is exactly one possible identity (`"personal-user"`), so a
+per-caller limiter would behave identically to a global one while adding
+complexity for nothing. In-memory sliding window: max 30 requests per
+rolling 60 seconds. Exceeding it returns `429` (see Error behavior above).
+This bounds request *frequency* — a separate concern from the
+authentication check, which only answers "is this a genuine caller,"
+never "how many times have they called."
 
 **Known limitation, stated plainly**: this state is in-memory and
 per-process — resets on restart, doesn't coordinate across multiple
@@ -169,6 +197,10 @@ limiter (`docs/AUTH_AND_PERSISTENCE.md`).
 
 - `lib/api.ts` is the **only** file in `apps/web` that calls this API — no
   component fetches these endpoints directly.
+- `chat()` and `listTools()` mint a fresh token per call via
+  `getApiToken()` (a Server Action — see
+  [`API_AUTHENTICATION.md`](API_AUTHENTICATION.md)) before attaching it as
+  `Authorization: Bearer <token>`. `getHealth()` does not.
 - `NEXT_PUBLIC_API_BASE_URL` must be a URL the **browser** can reach (these
   calls run client-side, from `"use client"` components), not a Docker
   Compose internal service name — see
@@ -190,8 +222,14 @@ limiter (`docs/AUTH_AND_PERSISTENCE.md`).
 - No endpoint executes a tool directly — only `route_query()`'s own
   tool-selection logic can do that (`apps/api` never imports
   `TOOL_REGISTRY[name]["function"]`).
-- No endpoint touches Odoo directly, authentication, users, or
-  conversations — those are `apps/web`'s responsibility (Auth.js, Prisma).
-  This API has no concept of "who is asking."
-- No pagination, rate limiting, or streaming (SSE/WebSocket) — every
-  `/chat` call is a single synchronous request/response.
+- No endpoint touches Odoo directly, conversations, or user accounts —
+  those stay `apps/web`'s responsibility (Prisma; user *accounts*, plural,
+  don't exist yet at all — see `AUTH_AND_PERSISTENCE.md`). This API does
+  now verify *identity* (Phase 10 — `/chat` and `/tools` require a signed
+  token, see [`API_AUTHENTICATION.md`](API_AUTHENTICATION.md)), but it has
+  no *authorization* model beyond that: every valid token asserts the same
+  single account, so there's nothing here that distinguishes one caller's
+  permissions from another's yet.
+- No pagination or streaming (SSE/WebSocket) — every `/chat` call is a
+  single synchronous request/response. (Rate limiting *is* implemented —
+  see above; this line used to claim otherwise and was stale.)

@@ -9,6 +9,11 @@ beyond personal/internal use.
 Neither system touches `src/`, `route_query()`, or Odoo in any way. They
 answer "who is this?" and "what did they say?" — never "what's the answer?"
 
+This document covers the **user-facing** login (browser ↔ `apps/web`). For
+how `apps/web` proves that identity to `apps/api` on every `/chat`/`/tools`
+call — a separate trust boundary, added in Phase 10 — see
+[`API_AUTHENTICATION.md`](API_AUTHENTICATION.md).
+
 ---
 
 ## Authentication

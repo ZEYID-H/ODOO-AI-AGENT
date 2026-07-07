@@ -2,9 +2,16 @@
  * Thin fetch wrapper around the FastAPI backend (apps/api). No business
  * logic, no tool logic — every question is answered by the backend's
  * /chat endpoint, which itself only calls the existing route_query().
+ *
+ * Phase 10: /chat and /tools now require a signed, short-lived token
+ * (see docs/API_AUTHENTICATION.md) — getApiToken() mints one per call via
+ * a Server Action, so the signing secret never reaches this (client-side)
+ * code. /health stays unauthenticated (Docker's own HEALTHCHECK hits it
+ * from inside the container with no way to obtain a token).
  */
 
 import type { HistoryMessage } from "./history";
+import { getApiToken } from "@/app/actions/api-token";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ??
@@ -55,8 +62,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${API_BASE_URL}${path}`, {
-      headers: { "Content-Type": "application/json" },
       ...init,
+      // A proper merge, not `{ headers: {...}, ...init }` — spreading
+      // init *after* a sibling `headers:` key would silently replace the
+      // whole headers object (losing Content-Type) whenever a caller also
+      // passes headers, exactly what the authenticated calls below do.
+      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
     });
   } catch {
     throw new ApiError(
@@ -73,19 +84,29 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
+/** Attaches a fresh, short-lived token (Phase 10) before delegating to
+ * request(). Not used for /health — see the file-level comment. */
+async function authenticatedRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = await getApiToken();
+  return request<T>(path, {
+    ...init,
+    headers: { ...(init?.headers ?? {}), Authorization: `Bearer ${token}` },
+  });
+}
+
 export function getHealth(): Promise<HealthResponse> {
   return request<HealthResponse>("/health");
 }
 
 export function listTools(): Promise<ToolsResponse> {
-  return request<ToolsResponse>("/tools");
+  return authenticatedRequest<ToolsResponse>("/tools");
 }
 
 export function chat(
   query: string,
   history: HistoryMessage[] = []
 ): Promise<ChatResponse> {
-  return request<ChatResponse>("/chat", {
+  return authenticatedRequest<ChatResponse>("/chat", {
     method: "POST",
     body: JSON.stringify({ query, history }),
   });

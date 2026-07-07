@@ -25,12 +25,13 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.agent.router import route_query
 from src.agent.tool_registry import TOOL_REGISTRY
 
+from apps.api.auth import AuthenticatedUser, require_auth
 from apps.api.schemas import (
     ChatMessage, ChatRequest, ChatResponse, HealthResponse, ToolsResponse,
 )
@@ -112,16 +113,22 @@ def filter_history(history: list[ChatMessage] | None) -> list[dict]:
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
+    # Deliberately unauthenticated (Phase 10): Docker's own HEALTHCHECK
+    # (apps/api/Dockerfile) and Compose's depends_on:condition:
+    # service_healthy hit this endpoint directly from inside the
+    # container, with no token and no way to obtain one — the standard,
+    # widely-accepted exception for liveness/readiness probes. It reveals
+    # no business data, just a static status string.
     return HealthResponse(status="ok", service="odoo-bi-api")
 
 
 @app.get("/tools", response_model=ToolsResponse)
-def list_tools() -> ToolsResponse:
+def list_tools(user: AuthenticatedUser = Depends(require_auth)) -> ToolsResponse:
     return ToolsResponse(count=len(TOOL_REGISTRY), tools=sorted(TOOL_REGISTRY.keys()))
 
 
 @app.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest) -> ChatResponse:
+def chat(request: ChatRequest, user: AuthenticatedUser = Depends(require_auth)) -> ChatResponse:
     if _is_chat_rate_limited():
         raise HTTPException(
             status_code=429,
@@ -145,7 +152,9 @@ def chat(request: ChatRequest) -> ChatResponse:
         # this used to fail completely silently — an operator had no way to
         # know route_query() was failing for every request short of a user
         # complaint).
-        logger.exception("route_query() failed for query=%r", request.query[:200])
+        logger.exception(
+            "route_query() failed for user=%r query=%r", user.user_id, request.query[:200]
+        )
         return ChatResponse(
             success=False,
             tool=None,
