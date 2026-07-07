@@ -1,6 +1,7 @@
 "use client";
 
 import { QUICK_ACTIONS } from "@/lib/quickActions";
+import { logoutAction } from "@/app/actions/auth";
 import type { ConnectionStatus } from "./TopBar";
 
 export default function Sidebar({
@@ -54,7 +55,7 @@ export default function Sidebar({
         </div>
       </div>
 
-      <div className="border-t border-line pt-4 mt-auto">
+      <div className="border-t border-line pt-4 mt-auto space-y-1.5">
         <button
           type="button"
           onClick={onClear}
@@ -62,6 +63,14 @@ export default function Sidebar({
         >
           🗑️ Clear Chat
         </button>
+        <form action={logoutAction}>
+          <button
+            type="submit"
+            className="w-full text-xs rounded-lg border border-line px-3 py-2 text-ink-dim hover:text-ink transition"
+          >
+            🚪 Log Out
+          </button>
+        </form>
       </div>
     </aside>
   );

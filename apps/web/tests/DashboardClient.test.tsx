@@ -12,8 +12,17 @@ vi.mock("@/lib/api", () => {
   };
 });
 
+// DashboardClient renders Sidebar, which imports logoutAction — pulling in
+// the real auth.ts -> next-auth module graph. These tests only exercise the
+// chat UI, not Auth.js itself (that's covered by session-guard.test.ts and
+// the live end-to-end auth flow), so it's mocked out here.
+vi.mock("@/app/actions/auth", () => ({
+  loginAction: vi.fn(),
+  logoutAction: vi.fn(),
+}));
+
 import { getHealth, listTools, chat, ApiError } from "@/lib/api";
-import DashboardPage from "../app/dashboard/page";
+import DashboardClient from "../components/DashboardClient";
 
 const mockedGetHealth = vi.mocked(getHealth);
 const mockedListTools = vi.mocked(listTools);
@@ -29,17 +38,17 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("DashboardPage — load", () => {
+describe("DashboardClient — load", () => {
   it("shows the empty state with quick actions once the backend is reachable", async () => {
     setupHealthyBackend();
-    render(<DashboardPage />);
+    render(<DashboardClient />);
     await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
     expect(screen.getByText("14")).toBeInTheDocument();
     expect(screen.getByText(/Ask a business question, or try one of these/)).toBeInTheDocument();
   });
 });
 
-describe("DashboardPage — chat submit", () => {
+describe("DashboardClient — chat submit", () => {
   it("shows a loading state and renders the answer once chat resolves", async () => {
     setupHealthyBackend();
     let resolveChat!: (v: Awaited<ReturnType<typeof chat>>) => void;
@@ -49,7 +58,7 @@ describe("DashboardPage — chat submit", () => {
       })
     );
 
-    render(<DashboardPage />);
+    render(<DashboardClient />);
     await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
 
     fireEvent.change(screen.getByPlaceholderText("Ask a business question..."), {
@@ -73,7 +82,7 @@ describe("DashboardPage — chat submit", () => {
 
   it("blocks empty/whitespace-only submissions client-side", async () => {
     setupHealthyBackend();
-    render(<DashboardPage />);
+    render(<DashboardClient />);
     await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
 
     fireEvent.change(screen.getByPlaceholderText("Ask a business question..."), {
@@ -93,7 +102,7 @@ describe("DashboardPage — chat submit", () => {
       })
     );
 
-    render(<DashboardPage />);
+    render(<DashboardClient />);
     await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
 
     const input = screen.getByPlaceholderText("Ask a business question...");
@@ -114,7 +123,7 @@ describe("DashboardPage — chat submit", () => {
     setupHealthyBackend();
     mockedChat.mockRejectedValue(new ApiError("Could not reach the API."));
 
-    render(<DashboardPage />);
+    render(<DashboardClient />);
     await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
 
     fireEvent.change(screen.getByPlaceholderText("Ask a business question..."), {
@@ -135,7 +144,7 @@ describe("DashboardPage — chat submit", () => {
       result: "Sorry, something went wrong while processing that request.",
     });
 
-    render(<DashboardPage />);
+    render(<DashboardClient />);
     await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
 
     fireEvent.change(screen.getByPlaceholderText("Ask a business question..."), {

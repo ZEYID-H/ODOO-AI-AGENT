@@ -1,6 +1,16 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+
+// Sidebar imports logoutAction, which pulls in the real auth.ts -> next-auth
+// module graph. These tests only exercise UI wiring, not Auth.js itself, so
+// it's mocked out here the same way @/lib/api is mocked in DashboardPage
+// tests — isolating the unit under test from an unrelated real dependency.
+vi.mock("@/app/actions/auth", () => ({
+  loginAction: vi.fn(),
+  logoutAction: vi.fn(),
+}));
+
 import Sidebar from "../components/Sidebar";
 import TopBar from "../components/TopBar";
 
