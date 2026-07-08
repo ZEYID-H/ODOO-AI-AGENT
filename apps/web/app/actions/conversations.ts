@@ -43,12 +43,19 @@ async function requireUserId(): Promise<string> {
   return session.user.id;
 }
 
-/** Idempotent: creates the User row on first use for the current session. */
+/**
+ * Idempotent: creates the User row on first use for the current session.
+ * Since D1's identity foundation the create-side fields are required, so a
+ * row auto-provisioned here is fail-closed: username = id (unique),
+ * empty passwordHash (can never log in — real accounts come only from
+ * scripts/seed-users.ts). Post-D1 a session implies the row already exists
+ * (login reads it from the DB), so in practice only the update no-op runs.
+ */
 async function ensureUser(userId: string): Promise<void> {
   await prisma.user.upsert({
     where: { id: userId },
     update: {},
-    create: { id: userId },
+    create: { id: userId, username: userId, passwordHash: "", role: "OWNER" },
   });
 }
 

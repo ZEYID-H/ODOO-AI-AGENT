@@ -19,4 +19,11 @@ echo "API is reachable via internal Docker networking."
 # after the first, so this is safe to run on every container start.
 npx prisma migrate deploy
 
+# Provisions the D1 accounts (admin + drivers) from SEED_* env vars — the
+# only account-creation mechanism (no user-management UI, by design; see
+# docs/DELIVERY_MANAGEMENT_PLAN.md). Idempotent: accounts whose env var is
+# unset are skipped, existing accounts are updated to match the env, so
+# this too is safe on every container start.
+npx tsx scripts/seed-users.ts
+
 exec "$@"

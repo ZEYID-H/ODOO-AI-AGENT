@@ -15,31 +15,42 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("LoginForm — login page renders and handles credentials safely", () => {
-  it("renders a password field and a submit button", () => {
+function fillAndSubmit(username: string, password: string) {
+  fireEvent.change(screen.getByLabelText("Username"), {
+    target: { value: username },
+  });
+  fireEvent.change(screen.getByLabelText("Password"), {
+    target: { value: password },
+  });
+  fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+}
+
+describe("LoginForm — username/password login (Delivery D1)", () => {
+  it("renders username and password fields and a submit button", () => {
     render(<LoginForm />);
-    expect(screen.getByLabelText("Access Password")).toBeInTheDocument();
+    expect(screen.getByLabelText("Username")).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /sign in/i })).toBeInTheDocument();
   });
 
   it("password input has type=password (never rendered as plain text)", () => {
     render(<LoginForm />);
-    expect(screen.getByLabelText("Access Password")).toHaveAttribute("type", "password");
+    expect(screen.getByLabelText("Password")).toHaveAttribute("type", "password");
   });
 
   it("shows a clear, safe error message when credentials are invalid, without leaking why", async () => {
-    mockedLoginAction.mockResolvedValue({ error: "Invalid password. Please try again." });
+    mockedLoginAction.mockResolvedValue({
+      error: "Invalid username or password. Please try again.",
+    });
 
     render(<LoginForm />);
-    fireEvent.change(screen.getByLabelText("Access Password"), {
-      target: { value: "wrong-password" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    fillAndSubmit("driver_ahmed", "wrong-password");
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Invalid password. Please try again.");
-    // Never echoes the submitted password or hints at what's misconfigured.
+    expect(alert).toHaveTextContent("Invalid username or password. Please try again.");
+    // Never echoes the submitted credentials or hints at what's misconfigured.
     expect(alert.textContent).not.toContain("wrong-password");
+    expect(alert.textContent).not.toContain("driver_ahmed");
   });
 
   it("shows a pending state while the login request is in flight", async () => {
@@ -51,10 +62,7 @@ describe("LoginForm — login page renders and handles credentials safely", () =
     );
 
     render(<LoginForm />);
-    fireEvent.change(screen.getByLabelText("Access Password"), {
-      target: { value: "something" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /sign in/i }));
+    fillAndSubmit("admin", "something");
 
     expect(await screen.findByRole("button", { name: /signing in/i })).toBeDisabled();
 

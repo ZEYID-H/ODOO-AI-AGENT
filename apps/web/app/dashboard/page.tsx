@@ -1,11 +1,12 @@
-import { requireSession } from "@/lib/session-guard";
+import { requireRole } from "@/lib/session-guard";
 import DashboardClient from "@/components/DashboardClient";
 import { ensureInitialConversation, loadConversation } from "@/app/actions/conversations";
 
 export default async function DashboardPage() {
   // Server-side gate — the actual protection. Not client-side hiding: an
-  // unauthenticated request never receives the dashboard markup at all.
-  await requireSession();
+  // unauthenticated request never receives the dashboard markup at all,
+  // and since D1 neither does a DRIVER (forwarded to /driver).
+  await requireRole("OWNER");
 
   // Not createConversation() here deliberately — that action calls
   // revalidatePath("/dashboard"), which Next.js forbids while /dashboard

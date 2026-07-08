@@ -17,11 +17,37 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import type { Session } from "next-auth";
+import type { Role } from "@/lib/auth-credentials";
 
 export async function requireSession(): Promise<Session> {
   const session = await auth();
   if (!session) {
     redirect("/login");
+  }
+  return session;
+}
+
+/** Where each role belongs — the redirect target when a page isn't theirs. */
+export const ROLE_HOME: Record<Role, string> = {
+  OWNER: "/dashboard",
+  DRIVER: "/driver",
+};
+
+/**
+ * Role-gated variant of requireSession() (Delivery D1). Same philosophy as
+ * above: this runs server-side inside the page component itself, so a
+ * request from the wrong role never receives the page's markup at all —
+ * hiding navigation client-side is UX, never authorization.
+ *
+ * A session with no role claim (a cookie minted before D1) or an
+ * unrecognized one fails closed to /login, where signing in again issues
+ * a token that carries a role.
+ */
+export async function requireRole(role: Role): Promise<Session> {
+  const session = await requireSession();
+  const actual = session.user.role;
+  if (actual !== role) {
+    redirect(actual === "OWNER" || actual === "DRIVER" ? ROLE_HOME[actual] : "/login");
   }
   return session;
 }

@@ -19,5 +19,12 @@ export default defineConfig({
     env: {
       DATABASE_URL: "file:./prisma/test.db",
     },
+    // SQLite allows exactly one writer at a time. Since D1 two suites
+    // (conversations, auth-credentials) write to the same test.db, and
+    // parallel workers hitting it produce libsql lock timeouts — so test
+    // *files* run sequentially. Tests within a file still share nothing
+    // across files, and the whole suite is small enough that this costs
+    // a couple of seconds, not minutes.
+    fileParallelism: false,
   },
 });

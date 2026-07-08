@@ -11,15 +11,32 @@ export default function LoginForm() {
   return (
     <form action={formAction} className="w-full max-w-sm space-y-4 text-left">
       <div>
+        <label htmlFor="username" className="block text-sm text-ink-dim mb-1">
+          Username
+        </label>
+        <input
+          id="username"
+          name="username"
+          type="text"
+          required
+          autoFocus
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
+          className="w-full rounded-lg border border-line bg-surface-2 px-4 py-3 text-sm text-ink placeholder:text-ink-dim focus:outline-none focus:border-accent"
+          placeholder="Enter username"
+        />
+      </div>
+
+      <div>
         <label htmlFor="password" className="block text-sm text-ink-dim mb-1">
-          Access Password
+          Password
         </label>
         <input
           id="password"
           name="password"
           type="password"
           required
-          autoFocus
           autoComplete="current-password"
           className="w-full rounded-lg border border-line bg-surface-2 px-4 py-3 text-sm text-ink placeholder:text-ink-dim focus:outline-none focus:border-accent"
           placeholder="Enter password"

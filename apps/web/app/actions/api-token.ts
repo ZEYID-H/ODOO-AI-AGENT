@@ -20,5 +20,12 @@ export async function getApiToken(): Promise<string> {
   if (!session?.user?.id) {
     throw new Error("Not authenticated.");
   }
+  // Delivery D1: the AI endpoints are owner-only. A DRIVER session never
+  // renders the chat UI, but Server Actions are directly invokable
+  // endpoints — so the role is enforced here, not just by page routing.
+  // Fails closed for pre-D1 sessions with no role claim.
+  if (session.user.role !== "OWNER") {
+    throw new Error("Not authorized.");
+  }
   return mintApiToken(session.user.id);
 }

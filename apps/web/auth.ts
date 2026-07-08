@@ -35,17 +35,26 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { attemptLogin } from "@/lib/auth-credentials";
 
+// Note (Delivery D1): the role travels the same two callbacks as the user
+// id — set on the JWT at sign-in, copied onto the session on every read.
+// Because the session is a stateless JWT, a role change in the database
+// only takes effect at the next sign-in (documented limitation, see
+// docs/DELIVERY_MANAGEMENT_PLAN.md §2). A pre-D1 session cookie has no
+// role claim at all; requireRole() treats that as "no access" and sends
+// the user back through /login, which reissues a token with a role.
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   providers: [
     Credentials({
-      name: "Personal Access",
+      name: "Account",
       credentials: {
+        username: { label: "Username", type: "text" },
         password: { label: "Password", type: "password" },
       },
       authorize(credentials) {
-        return attemptLogin(credentials?.password);
+        return attemptLogin(credentials?.username, credentials?.password);
       },
     }),
   ],
@@ -53,12 +62,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     jwt({ token, user }) {
       if (user) {
         token.sub = user.id;
+        token.role = user.role;
       }
       return token;
     },
     session({ session, token }) {
       if (token.sub) {
         session.user.id = token.sub;
+      }
+      if (token.role === "OWNER" || token.role === "DRIVER") {
+        session.user.role = token.role;
       }
       return session;
     },

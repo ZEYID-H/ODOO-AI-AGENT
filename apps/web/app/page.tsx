@@ -1,8 +1,19 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { ROLE_HOME } from "@/lib/session-guard";
 
 const BADGES = ["Read Only", "Secure", "Odoo Connected", "GPT Powered"];
 
-export default function Home() {
+export default async function Home() {
+  // Signed-in users land straight on their role's home (Delivery D1) —
+  // a DRIVER never needs the marketing page's "Enter Dashboard" path.
+  const session = await auth();
+  const role = session?.user?.role;
+  if (role === "OWNER" || role === "DRIVER") {
+    redirect(ROLE_HOME[role]);
+  }
+
   return (
     <main className="min-h-screen flex flex-col items-center justify-center px-6">
       <div className="max-w-xl w-full text-center space-y-6">
@@ -38,7 +49,7 @@ export default function Home() {
         </Link>
 
         <p className="text-xs text-ink-dim pt-4">
-          Personal-use preview — single shared password, no multi-user accounts.
+          Internal use — accounts are provisioned by the administrator.
         </p>
       </div>
     </main>

@@ -22,8 +22,9 @@ import { loginAction } from "../app/actions/auth";
 const mockedSignIn = vi.mocked(signIn);
 const mockedIsLoginRateLimited = vi.mocked(isLoginRateLimited);
 
-function formDataWith(password: string): FormData {
+function formDataWith(username: string, password: string): FormData {
   const fd = new FormData();
+  fd.set("username", username);
   fd.set("password", password);
   return fd;
 }
@@ -38,21 +39,43 @@ afterEach(() => {
 // test file for that counter's behavior. loginAction only consults
 // isLoginRateLimited() as a UX short-circuit, which is what these tests
 // cover in isolation.
-describe("loginAction (Phase 9 audit fix: rate-limit short-circuit)", () => {
-  it("returns a generic invalid-password error on a wrong password", async () => {
+describe("loginAction (username/password since Delivery D1)", () => {
+  it("passes username AND password through to signIn", async () => {
+    mockedIsLoginRateLimited.mockReturnValue(false);
+    mockedSignIn.mockResolvedValue(undefined as never);
+
+    await loginAction(undefined, formDataWith("driver_ahmed", "secret"));
+
+    expect(mockedSignIn).toHaveBeenCalledWith("credentials", {
+      username: "driver_ahmed",
+      password: "secret",
+      redirectTo: "/dashboard",
+    });
+  });
+
+  it("returns a generic invalid-credentials error on a wrong password", async () => {
     mockedIsLoginRateLimited.mockReturnValue(false);
     mockedSignIn.mockRejectedValue(new FakeAuthError("CredentialsSignin"));
 
-    const state = await loginAction(undefined, formDataWith("wrong"));
+    const state = await loginAction(undefined, formDataWith("admin", "wrong"));
 
-    expect(state.error).toBe("Invalid password. Please try again.");
+    expect(state.error).toBe("Invalid username or password. Please try again.");
     expect(mockedSignIn).toHaveBeenCalledTimes(1);
+  });
+
+  it("consults the rate limiter for the attempted username specifically", async () => {
+    mockedIsLoginRateLimited.mockReturnValue(false);
+    mockedSignIn.mockResolvedValue(undefined as never);
+
+    await loginAction(undefined, formDataWith("driver_ali", "x"));
+
+    expect(mockedIsLoginRateLimited).toHaveBeenCalledWith("driver_ali");
   });
 
   it("short-circuits with a specific message and never calls signIn() when already rate-limited", async () => {
     mockedIsLoginRateLimited.mockReturnValue(true);
 
-    const state = await loginAction(undefined, formDataWith("wrong"));
+    const state = await loginAction(undefined, formDataWith("admin", "wrong"));
 
     expect(state.error).toBe("Too many attempts. Please wait a minute and try again.");
     expect(mockedSignIn).not.toHaveBeenCalled();
@@ -62,8 +85,8 @@ describe("loginAction (Phase 9 audit fix: rate-limit short-circuit)", () => {
     mockedIsLoginRateLimited.mockReturnValue(false);
     mockedSignIn.mockRejectedValue(new Error("NEXT_REDIRECT"));
 
-    await expect(loginAction(undefined, formDataWith("correct"))).rejects.toThrow(
-      "NEXT_REDIRECT"
-    );
+    await expect(
+      loginAction(undefined, formDataWith("admin", "correct"))
+    ).rejects.toThrow("NEXT_REDIRECT");
   });
 });

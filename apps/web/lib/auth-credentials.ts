@@ -1,55 +1,88 @@
 /**
- * The single piece of actual credential-checking logic, kept as a pure,
- * directly testable function so it isn't buried inside Auth.js's
- * `authorize()` callback (which needs a running Next.js/Auth.js context to
- * invoke at all).
+ * Credential checking for the minimal identity foundation (Delivery
+ * Management D1 — see docs/DELIVERY_MANAGEMENT_PLAN.md §2): individual
+ * username/password accounts on the User table, exactly two roles, no
+ * user-management system. This replaces the pre-D1 single shared
+ * APP_ACCESS_PASSWORD check; the file keeps its original shape — pure(ish),
+ * directly testable functions that auth.ts's authorize() stays a thin
+ * wrapper around — because auth.ts itself can't be unit-tested outside a
+ * real Next.js runtime.
  *
- * Deliberately minimal: one shared password from an environment variable —
- * no username, no user table, no database. This is the "Option A" gate for
- * personal/internal use. Swapping this out for a real user lookup (a
- * database, an external identity provider, roles, per-tenant Odoo
- * connections, etc.) later means replacing only this function's body; the
- * Auth.js wiring in auth.ts, the login form, and the /dashboard guard do not
- * need to change.
+ * Accounts are created only by scripts/seed-users.ts. Rows backfilled by
+ * the D1 migration carry an empty passwordHash, which can never match —
+ * unseeded accounts fail closed.
  */
 
+import { compare } from "bcryptjs";
+import { prisma } from "./db";
 import { isLoginRateLimited, registerFailedLogin, resetLoginRateLimit } from "./login-rate-limit";
+
+export type Role = "OWNER" | "DRIVER";
 
 export interface AppUser {
   id: string;
   name: string;
-}
-
-export function verifyAppPassword(password: unknown): AppUser | null {
-  const expected = process.env.APP_ACCESS_PASSWORD;
-
-  // Fail closed: if the operator hasn't configured a password, nobody can
-  // log in rather than silently accepting anything.
-  if (!expected) return null;
-  if (typeof password !== "string" || password.length === 0) return null;
-  if (password !== expected) return null;
-
-  return { id: "personal-user", name: "Personal Access" };
+  role: Role;
 }
 
 /**
- * The full login decision, including brute-force protection (Phase 9
- * audit) — this is what auth.ts's authorize() calls directly, so it's the
- * one chokepoint every sign-in attempt funnels through (the Server Action
- * login form AND Auth.js's own raw /api/auth/callback/credentials route,
- * which bypasses the form entirely). Kept here, pure and directly
- * testable, for the same reason verifyAppPassword is: auth.ts itself can't
- * be unit-tested outside a real Next.js runtime.
+ * Real bcrypt hash of a fixed non-account string. When the username doesn't
+ * exist (or the row has no usable hash), we still run one compare against
+ * this so the response time doesn't reveal whether a username exists —
+ * otherwise "unknown user" returns in microseconds and "known user, wrong
+ * password" takes a full bcrypt verification, a classic enumeration oracle.
  */
-export function attemptLogin(password: unknown): AppUser | null {
-  if (isLoginRateLimited()) {
+const DUMMY_HASH = "$2b$10$wyHqkTlJKtJrlJSFsKoSjOiqgFAIixB7744Xgru5SLwISxmKnStTG";
+
+function parseRole(value: string): Role | null {
+  return value === "OWNER" || value === "DRIVER" ? value : null;
+}
+
+export async function verifyCredentials(
+  username: unknown,
+  password: unknown
+): Promise<AppUser | null> {
+  if (typeof username !== "string" || username.length === 0) return null;
+  if (typeof password !== "string" || password.length === 0) return null;
+
+  const user = await prisma.user.findUnique({ where: { username } });
+
+  if (!user || user.passwordHash.length === 0) {
+    await compare(password, DUMMY_HASH);
     return null;
   }
-  const user = verifyAppPassword(password);
+
+  const ok = await compare(password, user.passwordHash);
+  if (!ok) return null;
+
+  // A row whose role column holds anything but the two known values (only
+  // possible through manual DB edits) must not produce a session at all.
+  const role = parseRole(user.role);
+  if (!role) return null;
+
+  return { id: user.id, name: user.username, role };
+}
+
+/**
+ * The full login decision, including per-username brute-force protection —
+ * this is what auth.ts's authorize() calls directly, so it's the one
+ * chokepoint every sign-in attempt funnels through (the Server Action
+ * login form AND Auth.js's own raw /api/auth/callback/credentials route,
+ * which bypasses the form entirely).
+ */
+export async function attemptLogin(
+  username: unknown,
+  password: unknown
+): Promise<AppUser | null> {
+  const key = typeof username === "string" ? username : "";
+  if (isLoginRateLimited(key)) {
+    return null;
+  }
+  const user = await verifyCredentials(username, password);
   if (!user) {
-    registerFailedLogin();
+    registerFailedLogin(key);
     return null;
   }
-  resetLoginRateLimit();
+  resetLoginRateLimit(key);
   return user;
 }

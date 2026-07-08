@@ -1,12 +1,16 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { ROLE_HOME } from "@/lib/session-guard";
 import LoginForm from "@/components/LoginForm";
 
 export default async function LoginPage() {
-  // Already signed in — no need to show the form again.
+  // Already signed in — straight to the role's own home, no form. A session
+  // without a role claim (pre-D1 cookie) falls through to the form so
+  // signing in again reissues a token that carries one.
   const session = await auth();
-  if (session) {
-    redirect("/dashboard");
+  const role = session?.user?.role;
+  if (role === "OWNER" || role === "DRIVER") {
+    redirect(ROLE_HOME[role]);
   }
 
   return (
@@ -15,7 +19,7 @@ export default async function LoginPage() {
         <div>
           <h1 className="text-2xl font-semibold text-ink">Sign In</h1>
           <p className="mt-1 text-sm text-ink-dim">
-            Odoo Business Intelligence Assistant — personal access
+            Odoo Business Intelligence Assistant
           </p>
         </div>
         <LoginForm />

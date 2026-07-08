@@ -22,15 +22,21 @@ datasource db {
   provider = "sqlite"
 }
 
-// Minimal on purpose: today Auth.js always yields the single synthetic user
-// from lib/auth-credentials.ts ("personal-user"). This table exists now so
-// ownership is a real foreign-key relation (not a loose string match) and so
-// swapping in real multi-user auth later only means adding fields here —
-// Conversation/Message and every action in app/actions/conversations.ts stay
-// unchanged.
+// Minimal identity foundation (Delivery Management D1 — see
+// docs/DELIVERY_MANAGEMENT_PLAN.md §2): individual username/password
+// accounts with exactly two roles. `role` is a String, not an enum, for the
+// same SQLite→Postgres portability reason as Message.role; allowed values
+// ("OWNER" | "DRIVER") are enforced at the application boundary
+// (lib/auth-credentials.ts). Accounts are created only by the seed script
+// (scripts/seed-users.ts) — there is deliberately no user-management UI.
+// The pre-D1 owner keeps the id "personal-user" (seeded as username
+// "admin") so existing conversation ownership survives unchanged.
 model User {
-  id            String         @id
+  id            String         @id @default(cuid())
   createdAt     DateTime       @default(now())
+  username      String         @unique
+  passwordHash  String
+  role          String // "OWNER" | "DRIVER"
   conversations Conversation[]
 }
 
