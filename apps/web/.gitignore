@@ -47,3 +47,8 @@ next-env.d.ts
 # history) IS committed; only the actual data files are excluded here.
 /prisma/*.db
 /prisma/*.db-journal
+
+# Delivery-proof images (D3) — runtime data, never committed. Local dev
+# default and the vitest suite's upload directory.
+/.uploads
+/prisma/test-uploads

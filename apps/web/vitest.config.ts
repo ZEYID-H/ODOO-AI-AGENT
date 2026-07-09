@@ -18,6 +18,9 @@ export default defineConfig({
     // against this same URL) before vitest ever runs.
     env: {
       DATABASE_URL: "file:./prisma/test.db",
+      // Delivery D3: dedicated upload directory for tests — never the dev
+      // one; suites clean up after themselves (git-ignored regardless).
+      UPLOAD_DIR: "./prisma/test-uploads",
     },
     // SQLite allows exactly one writer at a time. Since D1 two suites
     // (conversations, auth-credentials) write to the same test.db, and

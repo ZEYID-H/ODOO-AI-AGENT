@@ -14,8 +14,10 @@
  * credential fields.
  */
 
+import { revalidatePath } from "next/cache";
 import { requireActionRole } from "@/lib/session-guard";
 import { prisma } from "@/lib/db";
+import { saveProofImage, deleteProofImage } from "@/lib/file-storage";
 
 export type DeliveryProofStatus = "PENDING" | "VERIFIED" | "REJECTED";
 
@@ -254,4 +256,62 @@ export async function rejectDeliveryProof(
     { status: "REJECTED", rejectionReason: reason },
     session.user.id
   );
+}
+
+export interface UploadDeliveryProofState {
+  error?: string;
+}
+
+/**
+ * DRIVER (D3): the driver portal's upload — one required image plus the
+ * D2 metadata fields, in a single submission so a proof-with-photo is
+ * created atomically (exactly one image per proof; there is deliberately
+ * no attach-image-later or replace-image action). useActionState-shaped:
+ * validation failures come back as form state, never as thrown errors.
+ * The image is validated (size cap, magic-byte type sniffing) and stored
+ * under a server-generated name before the row is created; if the row
+ * fails, the file is cleaned up rather than orphaned.
+ */
+export async function uploadDeliveryProof(
+  _prevState: UploadDeliveryProofState | undefined,
+  formData: FormData
+): Promise<UploadDeliveryProofState> {
+  const session = await requireActionRole("DRIVER");
+
+  // Validation failures carry user-facing messages by construction
+  // (normalizeOptionalText / saveProofImage throw them deliberately).
+  let data;
+  let stored;
+  try {
+    data = {
+      invoiceNumber: normalizeOptionalText(formData.get("invoiceNumber"), "Invoice number", MAX_INVOICE_NUMBER),
+      customerName: normalizeOptionalText(formData.get("customerName"), "Customer name", MAX_CUSTOMER_NAME),
+      notes: normalizeOptionalText(formData.get("notes"), "Notes", MAX_NOTES),
+    };
+    stored = await saveProofImage(formData.get("image"));
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Upload failed. Please try again.",
+    };
+  }
+
+  try {
+    await prisma.deliveryProof.create({
+      data: {
+        ...data,
+        imagePath: stored.storedName,
+        mimeType: stored.mimeType,
+        sizeBytes: stored.sizeBytes,
+        driverId: session.user.id,
+      },
+    });
+  } catch {
+    // Database errors are never surfaced verbatim — no internals in form
+    // state. The stored file is cleaned up rather than orphaned.
+    await deleteProofImage(stored.storedName);
+    return { error: "Upload failed. Please try again." };
+  }
+
+  revalidatePath("/driver");
+  return {};
 }

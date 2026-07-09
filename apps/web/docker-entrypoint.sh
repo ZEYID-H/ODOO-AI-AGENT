@@ -26,4 +26,9 @@ npx prisma migrate deploy
 # this too is safe on every container start.
 npx tsx scripts/seed-users.ts
 
+# Delivery D3: proof images live on the same persistent volume as the
+# SQLite file. /data is owned by the non-root node user (Dockerfile), so
+# creating a subdirectory here needs no privilege. Idempotent.
+mkdir -p "${UPLOAD_DIR:-/data/delivery-proofs}"
+
 exec "$@"

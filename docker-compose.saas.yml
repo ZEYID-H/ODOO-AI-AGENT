@@ -76,6 +76,10 @@ services:
     environment:
       # Points at the persistent volume below, not a path inside the image.
       DATABASE_URL: file:/data/conversations.db
+      # Delivery D3: proof images — same persistent volume as the database,
+      # so one volume carries all runtime state (and one restart-survival
+      # story covers both). Created by docker-entrypoint.sh if missing.
+      UPLOAD_DIR: /data/delivery-proofs
       # Required in Docker: Auth.js only auto-trusts the request host when
       # NODE_ENV isn't "production" (true for `next dev`, false for our
       # image's `next start`). Without this, login fails closed with an

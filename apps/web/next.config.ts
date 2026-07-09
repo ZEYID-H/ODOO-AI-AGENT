@@ -5,6 +5,17 @@ const nextConfig: NextConfig = {
   // hygiene — no functional effect).
   poweredByHeader: false,
 
+  // Delivery D3: Server Actions default to a 1MB request body, far below a
+  // phone photo. 12mb gives headroom over the app's own hard 10MB image cap
+  // (lib/file-storage.ts MAX_UPLOAD_BYTES) plus the multipart envelope —
+  // the app-level cap stays the real limit; this only stops Next from
+  // rejecting the request before our validation ever sees it.
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "12mb",
+    },
+  },
+
   // Baseline security headers (Phase 9 audit follow-up). Low current
   // exploitability for a personal-use tool that isn't publicly deployed,
   // but standard, cheap hardening with no behavior change for the app
