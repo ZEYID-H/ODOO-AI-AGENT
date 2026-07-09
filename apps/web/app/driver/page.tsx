@@ -1,12 +1,7 @@
 import { requireRole } from "@/lib/session-guard";
 import { listMyDeliveryProofs } from "@/app/actions/delivery-proofs";
 import DriverUploadForm from "@/components/DriverUploadForm";
-
-const STATUS_STYLE: Record<string, string> = {
-  PENDING: "border-warn/40 bg-warn/10 text-warn",
-  VERIFIED: "border-accent/40 bg-accent/10 text-accent",
-  REJECTED: "border-danger/40 bg-danger/10 text-danger",
-};
+import ProofStatusBadge from "@/components/ProofStatusBadge";
 
 /**
  * Driver portal (Delivery D3): photograph a delivered invoice, upload it,
@@ -61,11 +56,7 @@ export default async function DriverPage() {
 
                 <div className="min-w-0 space-y-1">
                   <div className="flex items-center gap-2">
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_STYLE[proof.status] ?? "border-line text-ink-dim"}`}
-                    >
-                      {proof.status}
-                    </span>
+                    <ProofStatusBadge status={proof.status} />
                     <span className="text-xs text-ink-dim">
                       {new Date(proof.uploadedAt).toLocaleString()}
                     </span>

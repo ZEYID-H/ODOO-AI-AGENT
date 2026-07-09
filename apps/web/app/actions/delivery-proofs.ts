@@ -159,14 +159,41 @@ export async function listMyDeliveryProofs(): Promise<DeliveryProofView[]> {
   return proofs.map(toView);
 }
 
-/** OWNER: every proof, newest first. Filters arrive with the D4 review UI. */
-export async function listAllDeliveryProofsForOwner(): Promise<OwnerDeliveryProofView[]> {
+/** Review-queue precedence (D4): work that needs attention comes first;
+ * decided proofs follow, grouped by outcome, newest first within each. */
+const STATUS_QUEUE_RANK: Record<DeliveryProofStatus, number> = {
+  PENDING: 0,
+  VERIFIED: 1,
+  REJECTED: 2,
+};
+
+/**
+ * OWNER: the review queue (D4). With no filter: every proof, PENDING first,
+ * newest first within each status. With a filter: that status only, newest
+ * first. The filter is strictly validated — anything but the three known
+ * statuses reads as "no filter" rather than an error, so a mistyped URL
+ * degrades to the full queue instead of breaking it.
+ */
+export async function listAllDeliveryProofsForOwner(
+  statusFilter?: string
+): Promise<OwnerDeliveryProofView[]> {
   await requireActionRole("OWNER");
+
+  const filter =
+    typeof statusFilter === "string" && isStatus(statusFilter) ? statusFilter : undefined;
+
   const proofs = await prisma.deliveryProof.findMany({
+    where: filter ? { status: filter } : undefined,
     orderBy: { uploadedAt: "desc" },
     include: ownerInclude,
   });
-  return proofs.map(toOwnerView);
+
+  const views = proofs.map(toOwnerView);
+  if (!filter) {
+    // Stable sort: equal ranks keep the query's newest-first order.
+    views.sort((a, b) => STATUS_QUEUE_RANK[a.status] - STATUS_QUEUE_RANK[b.status]);
+  }
+  return views;
 }
 
 /** OWNER: one proof by id; null for unknown ids (no existence probing to
@@ -256,6 +283,57 @@ export async function rejectDeliveryProof(
     { status: "REJECTED", rejectionReason: reason },
     session.user.id
   );
+}
+
+export interface ReviewFormState {
+  error?: string;
+}
+
+/**
+ * Form-shaped wrappers around the D2 review actions (D4 review UI). The
+ * D2 actions stay the single source of truth for transitions, atomicity,
+ * and immutability — these only adapt them to useActionState: validation
+ * and already-reviewed failures come back as form state; the guard runs
+ * here FIRST (permanent rule) so an unauthorized caller is thrown out
+ * before any form parsing, exactly like every other action.
+ *
+ * The proof id arrives as a hidden form field — that's resource
+ * addressing, not identity: who is acting always comes from the session,
+ * and the underlying action re-checks both role and state atomically.
+ */
+export async function verifyDeliveryProofForm(
+  _prevState: ReviewFormState | undefined,
+  formData: FormData
+): Promise<ReviewFormState> {
+  await requireActionRole("OWNER");
+  try {
+    await verifyDeliveryProof(String(formData.get("proofId") ?? ""));
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Review failed. Please try again.",
+    };
+  }
+  revalidatePath("/dashboard/delivery-proof");
+  return {};
+}
+
+export async function rejectDeliveryProofForm(
+  _prevState: ReviewFormState | undefined,
+  formData: FormData
+): Promise<ReviewFormState> {
+  await requireActionRole("OWNER");
+  try {
+    await rejectDeliveryProof(
+      String(formData.get("proofId") ?? ""),
+      String(formData.get("rejectionReason") ?? "")
+    );
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Review failed. Please try again.",
+    };
+  }
+  revalidatePath("/dashboard/delivery-proof");
+  return {};
 }
 
 export interface UploadDeliveryProofState {

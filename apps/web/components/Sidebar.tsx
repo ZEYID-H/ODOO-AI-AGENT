@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { QUICK_ACTIONS } from "@/lib/quickActions";
 import { logoutAction } from "@/app/actions/auth";
 import ConversationList from "@/components/ConversationList";
@@ -78,6 +79,14 @@ export default function Sidebar({
       </div>
 
       <div className="border-t border-line pt-4 mt-auto space-y-1.5">
+        {/* Navigation, not authorization: the queue page itself is
+            server-gated with requireRole("OWNER"). */}
+        <Link
+          href="/dashboard/delivery-proof"
+          className="block w-full text-xs rounded-lg border border-line px-3 py-2 text-ink-dim hover:text-ink hover:border-accent transition"
+        >
+          🚚 Delivery Proof Review
+        </Link>
         <form action={logoutAction}>
           <button
             type="submit"
