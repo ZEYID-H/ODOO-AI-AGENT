@@ -1,5 +1,14 @@
 "use server";
 
+/**
+ * D1.1 audit note: these two actions are the ONLY Server Actions exempt
+ * from the requireSession()/requireRole() rule
+ * (docs/PROJECT_DEVELOPMENT_GUIDE.md §4) — they are the authentication
+ * boundary itself. loginAction cannot require the session it exists to
+ * establish; logoutAction destroys whatever session exists and is a
+ * harmless no-op without one. Neither touches business data.
+ */
+
 import { AuthError } from "next-auth";
 import { signIn, signOut } from "@/auth";
 import { isLoginRateLimited } from "@/lib/login-rate-limit";

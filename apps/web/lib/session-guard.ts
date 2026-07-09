@@ -51,3 +51,32 @@ export async function requireRole(role: Role): Promise<Session> {
   }
   return session;
 }
+
+/**
+ * Server Action variants (D1.1 security closure). Pages redirect; actions
+ * must THROW instead — a Server Action is a directly invokable RPC
+ * endpoint, and its failure mode has to be a refused call, not a
+ * navigation hint. Every Server Action starts with one of these before any
+ * business logic (permanent rule — see docs/PROJECT_DEVELOPMENT_GUIDE.md);
+ * the only exempt actions are the authentication entry/exit points
+ * themselves (loginAction/logoutAction), which cannot require the session
+ * they exist to establish/destroy.
+ *
+ * Error messages are deliberately generic: they reveal that access was
+ * refused, never why or what exists.
+ */
+export async function requireActionSession(): Promise<Session> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    throw new Error("Not authenticated.");
+  }
+  return session;
+}
+
+export async function requireActionRole(role: Role): Promise<Session> {
+  const session = await requireActionSession();
+  if (session.user.role !== role) {
+    throw new Error("Not authorized.");
+  }
+  return session;
+}

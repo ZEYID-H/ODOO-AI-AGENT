@@ -2,6 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/api-token", () => ({ mintApiToken: vi.fn() }));
+// getApiToken routes its auth through lib/session-guard.ts (D1.1), which
+// imports server-only and next/navigation — same stubbing rationale as
+// session-guard.test.ts.
+vi.mock("server-only", () => ({}));
+vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
 import { auth } from "@/auth";
 import { mintApiToken } from "@/lib/api-token";

@@ -14,7 +14,7 @@
  */
 
 import { revalidatePath } from "next/cache";
-import { auth } from "@/auth";
+import { requireActionRole } from "@/lib/session-guard";
 import { prisma } from "@/lib/db";
 
 export interface ConversationSummary {
@@ -35,11 +35,20 @@ export interface ConversationWithMessages extends ConversationSummary {
   messages: PersistedMessage[];
 }
 
+/**
+ * D1.1 security closure: conversations are AI-Assistant functionality, and
+ * the AI Assistant is OWNER-only — so every action in this file is gated
+ * on the OWNER role, not just on having a session. Before this, a DRIVER
+ * session couldn't *render* the dashboard but could still invoke these
+ * actions directly (Server Actions are RPC endpoints). Fails closed for
+ * DRIVER and role-less (pre-D1) sessions alike.
+ *
+ * If drivers are ever meant to have their own conversations, that is a new
+ * feature with its own planning gate (docs/PROJECT_DEVELOPMENT_GUIDE.md §4)
+ * — not a loosening of this guard.
+ */
 async function requireUserId(): Promise<string> {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Not authenticated.");
-  }
+  const session = await requireActionRole("OWNER");
   return session.user.id;
 }
 

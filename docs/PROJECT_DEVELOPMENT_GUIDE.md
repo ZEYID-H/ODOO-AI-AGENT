@@ -95,6 +95,36 @@ Rules of the gate:
   than planned, STOP immediately, explain the findings, and request approval before
   proceeding. A failing stop condition means no commit.
 
+### Server Action authorization (permanent rule — D1.1, no exceptions)
+
+Every Server Action is a directly invokable RPC endpoint — page-level gating
+protects nothing an attacker calls directly. Therefore every Server Action must
+begin, before ANY business logic:
+
+```
+requireSession()          — or requireActionSession() in actions
+        ↓
+requireRole(...)          — or requireActionRole(...) when authorization is required
+        ↓
+business logic
+```
+
+- Actions use the **throwing** variants (`requireActionSession` /
+  `requireActionRole` in `apps/web/lib/session-guard.ts`); pages use the
+  redirecting ones. An action's failure mode is a refused call, never a
+  navigation hint, and its error messages stay generic (reveal that access was
+  refused, never why or what exists).
+- The ONLY exempt actions are the authentication boundary itself
+  (`loginAction`/`logoutAction` in `app/actions/auth.ts`), which cannot require
+  the session they exist to establish/destroy. Nothing else is exempt, ever.
+- Ownership scoping (e.g. `findOwnedConversation`) is a second, independent
+  check inside the business logic — a role gate is not a substitute for it.
+- Conversations are AI-Assistant functionality and therefore OWNER-only. If
+  drivers ever get conversation features of their own, that is a new feature
+  behind this gate's full planning process — not a loosening of the guard.
+- Every new Server Action ships with tests proving it rejects: no session, the
+  wrong role, and (where applicable) the right role but someone else's data.
+
 ## 5. MVP First (guiding principle)
 
 Every phase solves **one operational problem only**.

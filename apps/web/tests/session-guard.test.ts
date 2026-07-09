@@ -17,7 +17,12 @@ vi.mock("next/navigation", () => ({
 
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
-import { requireSession, requireRole } from "../lib/session-guard";
+import {
+  requireSession,
+  requireRole,
+  requireActionSession,
+  requireActionRole,
+} from "../lib/session-guard";
 
 const mockedAuth = vi.mocked(auth);
 const mockedRedirect = vi.mocked(redirect);
@@ -91,5 +96,59 @@ describe("requireRole (Delivery D1) — role-gated variant", () => {
     await expect(requireRole("DRIVER")).rejects.toThrow("NEXT_REDIRECT:/login");
     expect(mockedRedirect).toHaveBeenCalledWith("/login");
     expect(mockedRedirect).toHaveBeenCalledTimes(1);
+  });
+});
+
+// D1.1: Server Actions never redirect — they throw. These are the guards
+// every action must start with (docs/PROJECT_DEVELOPMENT_GUIDE.md §4).
+describe("requireActionSession / requireActionRole (D1.1) — throwing action guards", () => {
+  it("returns the session when authenticated", async () => {
+    mockedAuth.mockResolvedValue(sessionWith("DRIVER") as never);
+
+    const session = await requireActionSession();
+
+    expect(session.user.id).toBe("user-1");
+    expect(mockedRedirect).not.toHaveBeenCalled();
+  });
+
+  it("throws (never redirects) when there is no session", async () => {
+    mockedAuth.mockResolvedValue(null);
+
+    await expect(requireActionSession()).rejects.toThrow(/not authenticated/i);
+    expect(mockedRedirect).not.toHaveBeenCalled();
+  });
+
+  it("throws when the session has no user id", async () => {
+    mockedAuth.mockResolvedValue({ user: {}, expires: "2099-01-01" } as never);
+
+    await expect(requireActionSession()).rejects.toThrow(/not authenticated/i);
+  });
+
+  it("returns the session when the role matches", async () => {
+    mockedAuth.mockResolvedValue(sessionWith("OWNER") as never);
+
+    const session = await requireActionRole("OWNER");
+
+    expect(session.user.role).toBe("OWNER");
+    expect(mockedRedirect).not.toHaveBeenCalled();
+  });
+
+  it("throws (never redirects) on the wrong role", async () => {
+    mockedAuth.mockResolvedValue(sessionWith("DRIVER") as never);
+
+    await expect(requireActionRole("OWNER")).rejects.toThrow(/not authorized/i);
+    expect(mockedRedirect).not.toHaveBeenCalled();
+  });
+
+  it("throws on a session with no role claim (pre-D1 cookie) — fails closed", async () => {
+    mockedAuth.mockResolvedValue(sessionWith(undefined) as never);
+
+    await expect(requireActionRole("OWNER")).rejects.toThrow(/not authorized/i);
+  });
+
+  it("error messages are generic — they never leak the required role", async () => {
+    mockedAuth.mockResolvedValue(sessionWith("DRIVER") as never);
+
+    await expect(requireActionRole("OWNER")).rejects.toThrow(/^Not authorized\.$/);
   });
 });

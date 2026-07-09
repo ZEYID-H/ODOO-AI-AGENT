@@ -12,20 +12,14 @@
  * Next.js itself) but can never see or influence the signing secret.
  */
 
-import { auth } from "@/auth";
+import { requireActionRole } from "@/lib/session-guard";
 import { mintApiToken } from "@/lib/api-token";
 
 export async function getApiToken(): Promise<string> {
-  const session = await auth();
-  if (!session?.user?.id) {
-    throw new Error("Not authenticated.");
-  }
-  // Delivery D1: the AI endpoints are owner-only. A DRIVER session never
-  // renders the chat UI, but Server Actions are directly invokable
+  // Delivery D1/D1.1: the AI endpoints are owner-only. A DRIVER session
+  // never renders the chat UI, but Server Actions are directly invokable
   // endpoints — so the role is enforced here, not just by page routing.
   // Fails closed for pre-D1 sessions with no role claim.
-  if (session.user.role !== "OWNER") {
-    throw new Error("Not authorized.");
-  }
+  const session = await requireActionRole("OWNER");
   return mintApiToken(session.user.id);
 }

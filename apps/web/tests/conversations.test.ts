@@ -6,6 +6,11 @@ vi.mock("@/auth", () => ({ auth: vi.fn() }));
 // session-guard.test.ts. The actions' own logic (the part under test) never
 // depends on what this returns.
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+// The actions now route their auth through lib/session-guard.ts (D1.1),
+// which imports server-only and next/navigation — same stubbing rationale
+// as session-guard.test.ts.
+vi.mock("server-only", () => ({}));
+vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
 
 import { auth } from "@/auth";
 import {
@@ -21,9 +26,12 @@ import { prisma } from "@/lib/db";
 
 const mockedAuth = vi.mocked(auth);
 
-function mockSessionFor(userId: string) {
+// Conversations are OWNER-only since D1.1 — the CRUD/ownership suites below
+// all run as OWNER sessions; the role-enforcement suite at the bottom proves
+// every other kind of session is refused.
+function mockSessionFor(userId: string, role: string = "OWNER") {
   mockedAuth.mockResolvedValue({
-    user: { id: userId, name: "Test User" },
+    user: { id: userId, name: "Test User", ...(role ? { role } : {}) },
     expires: "2099-01-01",
   } as never);
 }
@@ -198,5 +206,49 @@ describe("ownership enforcement", () => {
   it("throws when there is no session at all (no user id to own anything)", async () => {
     mockedAuth.mockResolvedValue(null);
     await expect(listConversations()).rejects.toThrow(/not authenticated/i);
+  });
+});
+
+// D1.1 security closure: Server Actions are directly invokable RPC
+// endpoints, so page-level gating of /dashboard proves nothing here —
+// every conversation action must refuse non-OWNER sessions itself.
+describe("role enforcement (D1.1) — conversations are OWNER-only", () => {
+  const DRIVER_ID = `test-driver-${RUN}`;
+
+  it("a DRIVER session is refused by every conversation action", async () => {
+    mockSessionFor(DRIVER_ID, "DRIVER");
+
+    await expect(createConversation("nope")).rejects.toThrow(/not authorized/i);
+    await expect(listConversations()).rejects.toThrow(/not authorized/i);
+    await expect(ensureInitialConversation()).rejects.toThrow(/not authorized/i);
+    await expect(loadConversation("any-id")).rejects.toThrow(/not authorized/i);
+    await expect(renameConversation("any-id", "x")).rejects.toThrow(/not authorized/i);
+    await expect(deleteConversation("any-id")).rejects.toThrow(/not authorized/i);
+    await expect(appendMessage("any-id", "user", "hi")).rejects.toThrow(/not authorized/i);
+  });
+
+  it("a DRIVER can not even touch a conversation they somehow know the id of", async () => {
+    mockSessionFor(USER_A);
+    const conv = await createConversation("Owner's private data");
+
+    mockSessionFor(DRIVER_ID, "DRIVER");
+    await expect(loadConversation(conv.id)).rejects.toThrow(/not authorized/i);
+    await expect(deleteConversation(conv.id)).rejects.toThrow(/not authorized/i);
+
+    // Untouched: still exists for its owner.
+    mockSessionFor(USER_A);
+    expect(await loadConversation(conv.id)).not.toBeNull();
+  });
+
+  it("a session with no role claim (pre-D1 cookie) is refused — fails closed", async () => {
+    mockSessionFor(USER_A, "");
+    await expect(listConversations()).rejects.toThrow(/not authorized/i);
+  });
+
+  it("a DRIVER's refused calls leave no rows behind", async () => {
+    mockSessionFor(DRIVER_ID, "DRIVER");
+    await expect(createConversation("ghost")).rejects.toThrow();
+    const ghost = await prisma.conversation.findMany({ where: { userId: DRIVER_ID } });
+    expect(ghost).toHaveLength(0);
   });
 });
