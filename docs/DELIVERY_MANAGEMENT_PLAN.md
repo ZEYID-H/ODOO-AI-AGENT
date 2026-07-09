@@ -541,6 +541,12 @@ gallery polish, editing/deleting proofs, multiple images per proof, EXIF process
 - DRIVER sees only own uploads; driver B cannot fetch driver A's image URL;
   unauthenticated image URL → 401/redirect
 - Persistence across container restart (Docker volume survives)
+- Wire-level action verification (D2 finding): Next only registers a Server
+  Action as an invokable HTTP endpoint once UI code references it — D2's
+  proof actions are unreachable over the wire until this phase imports
+  them. When D3 wires the upload UI, re-verify every delivery-proof action
+  over HTTP (driver refused from owner actions, unauthenticated refused),
+  not just in unit tests.
 
 **Stop condition:** If the local volume path is unsafe or inaccessible in Docker under
 the non-root / `cap_drop: ALL` constraints, or if upload limits force an `apps/api`

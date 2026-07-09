@@ -1,0 +1,257 @@
+"use server";
+
+/**
+ * Delivery proof persistence actions (Delivery Management D2 — see
+ * docs/DELIVERY_MANAGEMENT_PLAN.md §9). Metadata only: no file handling,
+ * no uploads — imagePath/mimeType/sizeBytes stay null until D3.
+ *
+ * Authorization (docs/PROJECT_DEVELOPMENT_GUIDE.md §4, permanent rule):
+ * every action starts with requireActionRole() before any business logic.
+ * Drivers create and see exclusively their own proofs — the driver id
+ * always comes from the server session, never from the client. Owners see
+ * everything and are the only role that can verify/reject. Error messages
+ * stay generic; owner views expose the driver's username only, never
+ * credential fields.
+ */
+
+import { requireActionRole } from "@/lib/session-guard";
+import { prisma } from "@/lib/db";
+
+export type DeliveryProofStatus = "PENDING" | "VERIFIED" | "REJECTED";
+
+export interface DeliveryProofView {
+  id: string;
+  invoiceNumber: string | null;
+  customerName: string | null;
+  notes: string | null;
+  imagePath: string | null;
+  status: DeliveryProofStatus;
+  rejectionReason: string | null;
+  uploadedAt: string;
+  verifiedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Owner-facing view: adds who uploaded and who reviewed — usernames only. */
+export interface OwnerDeliveryProofView extends DeliveryProofView {
+  driverId: string;
+  driverUsername: string;
+  verifiedByUsername: string | null;
+}
+
+export interface CreateDeliveryProofInput {
+  invoiceNumber?: unknown;
+  customerName?: unknown;
+  notes?: unknown;
+}
+
+const MAX_INVOICE_NUMBER = 64;
+const MAX_CUSTOMER_NAME = 128;
+const MAX_NOTES = 1000;
+const MAX_REJECTION_REASON = 500;
+
+/**
+ * Optional free-text field: trims, treats empty/absent as null, rejects
+ * non-strings and over-length input loudly (never silently truncates —
+ * what the driver typed is evidence, so it must be stored exactly or not
+ * at all).
+ */
+function normalizeOptionalText(
+  value: unknown,
+  field: string,
+  maxLength: number
+): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") {
+    throw new Error(`${field} must be text.`);
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return null;
+  if (trimmed.length > maxLength) {
+    throw new Error(`${field} must be at most ${maxLength} characters.`);
+  }
+  return trimmed;
+}
+
+function isStatus(value: string): value is DeliveryProofStatus {
+  return value === "PENDING" || value === "VERIFIED" || value === "REJECTED";
+}
+
+function toView(p: {
+  id: string;
+  invoiceNumber: string | null;
+  customerName: string | null;
+  notes: string | null;
+  imagePath: string | null;
+  status: string;
+  rejectionReason: string | null;
+  uploadedAt: Date;
+  verifiedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): DeliveryProofView {
+  return {
+    id: p.id,
+    invoiceNumber: p.invoiceNumber,
+    customerName: p.customerName,
+    notes: p.notes,
+    imagePath: p.imagePath,
+    status: isStatus(p.status) ? p.status : "PENDING",
+    rejectionReason: p.rejectionReason,
+    uploadedAt: p.uploadedAt.toISOString(),
+    verifiedAt: p.verifiedAt ? p.verifiedAt.toISOString() : null,
+    createdAt: p.createdAt.toISOString(),
+    updatedAt: p.updatedAt.toISOString(),
+  };
+}
+
+// Owner queries select the related usernames explicitly — never the full
+// User rows, which carry passwordHash.
+const ownerInclude = {
+  driver: { select: { username: true } },
+  verifiedBy: { select: { username: true } },
+} as const;
+
+function toOwnerView(
+  p: Parameters<typeof toView>[0] & {
+    driverId: string;
+    driver: { username: string };
+    verifiedBy: { username: string } | null;
+  }
+): OwnerDeliveryProofView {
+  return {
+    ...toView(p),
+    driverId: p.driverId,
+    driverUsername: p.driver.username,
+    verifiedByUsername: p.verifiedBy ? p.verifiedBy.username : null,
+  };
+}
+
+/** DRIVER: record a delivery proof (metadata only in D2 — the photo itself
+ * arrives in D3). The proof always belongs to the session's driver. */
+export async function createDeliveryProofMetadata(
+  input: CreateDeliveryProofInput
+): Promise<DeliveryProofView> {
+  const session = await requireActionRole("DRIVER");
+
+  const data = {
+    invoiceNumber: normalizeOptionalText(input?.invoiceNumber, "Invoice number", MAX_INVOICE_NUMBER),
+    customerName: normalizeOptionalText(input?.customerName, "Customer name", MAX_CUSTOMER_NAME),
+    notes: normalizeOptionalText(input?.notes, "Notes", MAX_NOTES),
+  };
+
+  const proof = await prisma.deliveryProof.create({
+    data: { ...data, driverId: session.user.id },
+  });
+  return toView(proof);
+}
+
+/** DRIVER: own proofs only, newest first. */
+export async function listMyDeliveryProofs(): Promise<DeliveryProofView[]> {
+  const session = await requireActionRole("DRIVER");
+  const proofs = await prisma.deliveryProof.findMany({
+    where: { driverId: session.user.id },
+    orderBy: { uploadedAt: "desc" },
+  });
+  return proofs.map(toView);
+}
+
+/** OWNER: every proof, newest first. Filters arrive with the D4 review UI. */
+export async function listAllDeliveryProofsForOwner(): Promise<OwnerDeliveryProofView[]> {
+  await requireActionRole("OWNER");
+  const proofs = await prisma.deliveryProof.findMany({
+    orderBy: { uploadedAt: "desc" },
+    include: ownerInclude,
+  });
+  return proofs.map(toOwnerView);
+}
+
+/** OWNER: one proof by id; null for unknown ids (no existence probing to
+ * defend against here — owners can already list everything). */
+export async function getDeliveryProofForOwner(
+  proofId: string
+): Promise<OwnerDeliveryProofView | null> {
+  await requireActionRole("OWNER");
+  if (typeof proofId !== "string" || proofId.length === 0) {
+    return null;
+  }
+  const proof = await prisma.deliveryProof.findUnique({
+    where: { id: proofId },
+    include: ownerInclude,
+  });
+  return proof ? toOwnerView(proof) : null;
+}
+
+/**
+ * The single review chokepoint for both decisions. A proof can be reviewed
+ * exactly once, and only from PENDING — enforced atomically (updateMany
+ * with the status in the WHERE clause), so two concurrent reviews can't
+ * both win. Re-reviewing a decided proof is deliberately not supported in
+ * D2; if D4's review UI needs it, that's a planned change, not a default.
+ * verifiedAt records when the review happened — on rejection too.
+ */
+async function reviewDeliveryProof(
+  proofId: unknown,
+  decision: { status: "VERIFIED" | "REJECTED"; rejectionReason: string | null },
+  reviewerId: string
+): Promise<OwnerDeliveryProofView> {
+  if (typeof proofId !== "string" || proofId.length === 0) {
+    throw new Error("Delivery proof not found or already reviewed.");
+  }
+  const updated = await prisma.deliveryProof.updateMany({
+    where: { id: proofId, status: "PENDING" },
+    data: {
+      status: decision.status,
+      rejectionReason: decision.rejectionReason,
+      verifiedAt: new Date(),
+      verifiedById: reviewerId,
+    },
+  });
+  if (updated.count === 0) {
+    // Unknown id and already-reviewed look identical on purpose — the
+    // caller learns the review didn't happen, nothing more.
+    throw new Error("Delivery proof not found or already reviewed.");
+  }
+  const proof = await prisma.deliveryProof.findUniqueOrThrow({
+    where: { id: proofId },
+    include: ownerInclude,
+  });
+  return toOwnerView(proof);
+}
+
+/** OWNER: verify a pending proof. Clears any rejection reason by design. */
+export async function verifyDeliveryProof(
+  proofId: string
+): Promise<OwnerDeliveryProofView> {
+  const session = await requireActionRole("OWNER");
+  return reviewDeliveryProof(
+    proofId,
+    { status: "VERIFIED", rejectionReason: null },
+    session.user.id
+  );
+}
+
+/** OWNER: reject a pending proof. A non-empty reason is required — a
+ * rejection the driver can't understand is a WhatsApp argument, which is
+ * exactly what this module exists to replace. */
+export async function rejectDeliveryProof(
+  proofId: string,
+  rejectionReason: string
+): Promise<OwnerDeliveryProofView> {
+  const session = await requireActionRole("OWNER");
+
+  if (typeof rejectionReason !== "string" || rejectionReason.trim().length === 0) {
+    throw new Error("A rejection reason is required.");
+  }
+  const reason = rejectionReason.trim();
+  if (reason.length > MAX_REJECTION_REASON) {
+    throw new Error(`Rejection reason must be at most ${MAX_REJECTION_REASON} characters.`);
+  }
+
+  return reviewDeliveryProof(
+    proofId,
+    { status: "REJECTED", rejectionReason: reason },
+    session.user.id
+  );
+}

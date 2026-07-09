@@ -32,12 +32,51 @@ datasource db {
 // The pre-D1 owner keeps the id "personal-user" (seeded as username
 // "admin") so existing conversation ownership survives unchanged.
 model User {
-  id            String         @id @default(cuid())
-  createdAt     DateTime       @default(now())
-  username      String         @unique
-  passwordHash  String
-  role          String // "OWNER" | "DRIVER"
-  conversations Conversation[]
+  id             String          @id @default(cuid())
+  createdAt      DateTime        @default(now())
+  username       String          @unique
+  passwordHash   String
+  role           String // "OWNER" | "DRIVER"
+  conversations  Conversation[]
+  deliveryProofs DeliveryProof[] @relation("DriverProofs")
+  reviewedProofs DeliveryProof[] @relation("ReviewedProofs")
+}
+
+// Delivery Management D2 (docs/DELIVERY_MANAGEMENT_PLAN.md §5): metadata
+// for a delivered-invoice proof. imagePath/mimeType/sizeBytes are nullable
+// on purpose — the actual file arrives in D3; the column names abstract the
+// storage backend so a later move to object storage is a data migration,
+// not a schema redesign. status/role values are Strings for the same
+// SQLite→Postgres portability reason as User.role and Message.role; the
+// allowed values ("PENDING" | "VERIFIED" | "REJECTED") and every transition
+// are enforced at the application boundary (app/actions/delivery-proofs.ts).
+// verifiedAt is the review timestamp — set on rejection too, not only on
+// verification.
+model DeliveryProof {
+  id              String    @id @default(cuid())
+  invoiceNumber   String?
+  customerName    String?
+  notes           String?
+  imagePath       String?
+  mimeType        String?
+  sizeBytes       Int?
+  status          String    @default("PENDING") // "PENDING" | "VERIFIED" | "REJECTED"
+  rejectionReason String?
+  uploadedAt      DateTime  @default(now())
+  verifiedAt      DateTime?
+  driverId        String
+  driver          User      @relation("DriverProofs", fields: [driverId], references: [id], onDelete: Cascade)
+  verifiedById    String?
+  verifiedBy      User?     @relation("ReviewedProofs", fields: [verifiedById], references: [id], onDelete: SetNull)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // The driver portal's hot query ("my recent uploads") and the admin
+  // review queue, respectively; single-column indexes serve the D4 filters.
+  @@index([driverId, uploadedAt])
+  @@index([status, uploadedAt])
+  @@index([invoiceNumber])
+  @@index([uploadedAt])
 }
 
 model Conversation {
