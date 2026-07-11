@@ -64,6 +64,23 @@ model DeliveryProof {
   rejectionReason String?
   uploadedAt      DateTime  @default(now())
   verifiedAt      DateTime?
+
+  // OCR readiness (D5 — data foundation only, no OCR engine exists yet;
+  // see docs/DELIVERY_MANAGEMENT_PLAN.md §10). All extraction fields are
+  // nullable; ocrStatus is a non-null String with a safe default so every
+  // proof — including pre-D5 rows backfilled by the migration — reads
+  // "NOT_STARTED" rather than an ambiguous null. Allowed values
+  // ("NOT_STARTED" | "PROCESSING" | "COMPLETED" | "FAILED") are enforced
+  // at the application boundary like every other status here. ocrConfidence
+  // is 0..1. Only the owner-facing views ever expose these; driver views
+  // deliberately omit them.
+  ocrStatus        String    @default("NOT_STARTED")
+  ocrText          String?
+  ocrInvoiceNumber String?
+  ocrCustomerName  String?
+  ocrConfidence    Float?
+  ocrProcessedAt   DateTime?
+  ocrError         String?
   driverId        String
   driver          User      @relation("DriverProofs", fields: [driverId], references: [id], onDelete: Cascade)
   verifiedById    String?

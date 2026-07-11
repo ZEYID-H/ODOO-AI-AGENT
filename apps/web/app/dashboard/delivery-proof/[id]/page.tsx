@@ -1,9 +1,25 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/session-guard";
-import { getDeliveryProofForOwner } from "@/app/actions/delivery-proofs";
+import { getDeliveryProofForOwner, type OcrStatus } from "@/app/actions/delivery-proofs";
 import ProofStatusBadge from "@/components/ProofStatusBadge";
 import ProofReviewActions from "@/components/ProofReviewActions";
+
+const OCR_LABEL: Record<OcrStatus, { text: string; className: string }> = {
+  NOT_STARTED: { text: "Not started", className: "border-line text-ink-dim" },
+  PROCESSING: { text: "Processing", className: "border-warn/40 bg-warn/10 text-warn" },
+  COMPLETED: { text: "Completed", className: "border-accent/40 bg-accent/10 text-accent" },
+  FAILED: { text: "Failed", className: "border-danger/40 bg-danger/10 text-danger" },
+};
+
+function OcrStatusLabel({ status }: { status: OcrStatus }) {
+  const label = OCR_LABEL[status] ?? OCR_LABEL.NOT_STARTED;
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded-full border ${label.className}`}>
+      {label.text}
+    </span>
+  );
+}
 
 /**
  * Dedicated review page for one proof (D4). Everything shown here comes
@@ -75,6 +91,58 @@ export default async function DeliveryProofDetailsPage({
           <dt className="text-ink-dim">Notes</dt>
           <dd className="text-ink whitespace-pre-wrap">{proof.notes ?? "—"}</dd>
         </dl>
+      </section>
+
+      {/* OCR readiness panel (D5): placeholder over persisted data only —
+          no engine, no Run button, no jobs. When D6 wires extraction, its
+          results appear here without changing this page's structure; the
+          Odoo-match / manual-correction panel will follow as a sibling
+          section. */}
+      <section className="rounded-xl border border-line bg-surface-2 p-4 space-y-2">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-semibold text-ink">Invoice Extraction (OCR)</h2>
+          <OcrStatusLabel status={proof.ocrStatus} />
+        </div>
+
+        {proof.ocrStatus === "NOT_STARTED" ? (
+          <p className="text-sm text-ink-dim">
+            Not started — automatic invoice extraction is planned for a future
+            phase. Extracted data will appear here.
+          </p>
+        ) : (
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+            {proof.ocrInvoiceNumber && (
+              <>
+                <dt className="text-ink-dim">Invoice number</dt>
+                <dd className="text-ink">{proof.ocrInvoiceNumber}</dd>
+              </>
+            )}
+            {proof.ocrCustomerName && (
+              <>
+                <dt className="text-ink-dim">Customer</dt>
+                <dd className="text-ink">{proof.ocrCustomerName}</dd>
+              </>
+            )}
+            {proof.ocrConfidence !== null && (
+              <>
+                <dt className="text-ink-dim">Confidence</dt>
+                <dd className="text-ink">{Math.round(proof.ocrConfidence * 100)}%</dd>
+              </>
+            )}
+            {proof.ocrProcessedAt && (
+              <>
+                <dt className="text-ink-dim">Processed</dt>
+                <dd className="text-ink">{new Date(proof.ocrProcessedAt).toLocaleString()}</dd>
+              </>
+            )}
+            {proof.ocrStatus === "FAILED" && (
+              <>
+                <dt className="text-ink-dim">Error</dt>
+                <dd className="text-danger whitespace-pre-wrap">{proof.ocrError ?? "—"}</dd>
+              </>
+            )}
+          </dl>
+        )}
       </section>
 
       <section className="rounded-xl border border-line bg-surface-2 p-4 space-y-3">

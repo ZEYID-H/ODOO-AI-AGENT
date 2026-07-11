@@ -20,6 +20,7 @@ import { prisma } from "@/lib/db";
 import { saveProofImage, deleteProofImage } from "@/lib/file-storage";
 
 export type DeliveryProofStatus = "PENDING" | "VERIFIED" | "REJECTED";
+export type OcrStatus = "NOT_STARTED" | "PROCESSING" | "COMPLETED" | "FAILED";
 
 export interface DeliveryProofView {
   id: string;
@@ -35,11 +36,22 @@ export interface DeliveryProofView {
   updatedAt: string;
 }
 
-/** Owner-facing view: adds who uploaded and who reviewed — usernames only. */
+/**
+ * Owner-facing view: adds who uploaded and who reviewed (usernames only)
+ * plus the OCR-readiness fields (D5). OCR data lives ONLY here by design —
+ * DeliveryProofView, which is what drivers receive, never carries it.
+ */
 export interface OwnerDeliveryProofView extends DeliveryProofView {
   driverId: string;
   driverUsername: string;
   verifiedByUsername: string | null;
+  ocrStatus: OcrStatus;
+  ocrText: string | null;
+  ocrInvoiceNumber: string | null;
+  ocrCustomerName: string | null;
+  ocrConfidence: number | null;
+  ocrProcessedAt: string | null;
+  ocrError: string | null;
 }
 
 export interface CreateDeliveryProofInput {
@@ -115,11 +127,27 @@ const ownerInclude = {
   verifiedBy: { select: { username: true } },
 } as const;
 
+function isOcrStatus(value: string): value is OcrStatus {
+  return (
+    value === "NOT_STARTED" ||
+    value === "PROCESSING" ||
+    value === "COMPLETED" ||
+    value === "FAILED"
+  );
+}
+
 function toOwnerView(
   p: Parameters<typeof toView>[0] & {
     driverId: string;
     driver: { username: string };
     verifiedBy: { username: string } | null;
+    ocrStatus: string;
+    ocrText: string | null;
+    ocrInvoiceNumber: string | null;
+    ocrCustomerName: string | null;
+    ocrConfidence: number | null;
+    ocrProcessedAt: Date | null;
+    ocrError: string | null;
   }
 ): OwnerDeliveryProofView {
   return {
@@ -127,6 +155,13 @@ function toOwnerView(
     driverId: p.driverId,
     driverUsername: p.driver.username,
     verifiedByUsername: p.verifiedBy ? p.verifiedBy.username : null,
+    ocrStatus: isOcrStatus(p.ocrStatus) ? p.ocrStatus : "NOT_STARTED",
+    ocrText: p.ocrText,
+    ocrInvoiceNumber: p.ocrInvoiceNumber,
+    ocrCustomerName: p.ocrCustomerName,
+    ocrConfidence: p.ocrConfidence,
+    ocrProcessedAt: p.ocrProcessedAt ? p.ocrProcessedAt.toISOString() : null,
+    ocrError: p.ocrError,
   };
 }
 
@@ -334,6 +369,85 @@ export async function rejectDeliveryProofForm(
   }
   revalidatePath("/dashboard/delivery-proof");
   return {};
+}
+
+export interface OcrResultInput {
+  ocrStatus: unknown;
+  ocrText?: unknown;
+  ocrInvoiceNumber?: unknown;
+  ocrCustomerName?: unknown;
+  ocrConfidence?: unknown;
+  ocrError?: unknown;
+}
+
+/**
+ * OCR-readiness recorder (D5). No OCR engine exists yet — this is the one
+ * internal, guarded write path future extraction (D6) will call, so the
+ * write rules live here from day one instead of appearing with the engine:
+ * strict status vocabulary, confidence clamped to [0..1], length-capped
+ * text, ocrProcessedAt set server-side only for terminal states.
+ *
+ * OWNER-only, enforced by the guard on the first line — which is the real
+ * boundary: this file is in the UI build graph, so like every exported
+ * action here this one IS a registered HTTP endpoint (D5 finding: the D2
+ * "unreferenced actions aren't reachable" behavior applies to whole
+ * unreferenced files, not to individual unreferenced exports). No UI
+ * imports or renders it; DRIVER and anonymous callers are refused before
+ * any parsing, verified over the wire in D5's runtime validation.
+ * DRIVER can never mutate OCR fields: there is no other write path.
+ * (D6 design note: a background worker would have no session — it must
+ * either mint a system identity or call the underlying logic behind its
+ * own boundary. That decision belongs to D6's planning gate, not here.)
+ */
+export async function recordOcrResult(
+  proofId: string,
+  input: OcrResultInput
+): Promise<OwnerDeliveryProofView> {
+  await requireActionRole("OWNER");
+
+  if (typeof proofId !== "string" || proofId.length === 0) {
+    throw new Error("Delivery proof not found.");
+  }
+  if (typeof input?.ocrStatus !== "string" || !isOcrStatus(input.ocrStatus)) {
+    throw new Error("Invalid OCR status.");
+  }
+  const status = input.ocrStatus;
+
+  let confidence: number | null = null;
+  if (input.ocrConfidence !== undefined && input.ocrConfidence !== null) {
+    if (
+      typeof input.ocrConfidence !== "number" ||
+      Number.isNaN(input.ocrConfidence) ||
+      input.ocrConfidence < 0 ||
+      input.ocrConfidence > 1
+    ) {
+      throw new Error("OCR confidence must be a number between 0 and 1.");
+    }
+    confidence = input.ocrConfidence;
+  }
+
+  const isTerminal = status === "COMPLETED" || status === "FAILED";
+  const updated = await prisma.deliveryProof.updateMany({
+    where: { id: proofId },
+    data: {
+      ocrStatus: status,
+      ocrText: normalizeOptionalText(input.ocrText, "OCR text", 20000),
+      ocrInvoiceNumber: normalizeOptionalText(input.ocrInvoiceNumber, "OCR invoice number", MAX_INVOICE_NUMBER),
+      ocrCustomerName: normalizeOptionalText(input.ocrCustomerName, "OCR customer name", MAX_CUSTOMER_NAME),
+      ocrConfidence: confidence,
+      ocrError: normalizeOptionalText(input.ocrError, "OCR error", 1000),
+      ocrProcessedAt: isTerminal ? new Date() : null,
+    },
+  });
+  if (updated.count === 0) {
+    throw new Error("Delivery proof not found.");
+  }
+
+  const proof = await prisma.deliveryProof.findUniqueOrThrow({
+    where: { id: proofId },
+    include: ownerInclude,
+  });
+  return toOwnerView(proof);
 }
 
 export interface UploadDeliveryProofState {
