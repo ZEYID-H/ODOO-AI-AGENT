@@ -424,6 +424,11 @@ all-time meaning and is unrelated to these four cards (not currently rendered in
 - **Odoo invoice matching** — cross-reference extracted data via the read-only gateway
 - **Delivery analytics** — owner-side reporting/trends over proof data
 
+**Full detailed phase plans for D7 onward — plus the OCR, Analytics, Infrastructure,
+and SaaS tracks, release milestones, and priority order — live in
+`docs/REMAINING_PROJECT_ROADMAP.md`**, the authoritative roadmap as of D6.2. This
+file's D1–D6.2 history above remains the detailed record of what already shipped.
+
 The per-phase design sections that follow (D1–D6) predate this reconciliation and are
 kept for their design rationale; treat the table above as the source of truth for
 status.

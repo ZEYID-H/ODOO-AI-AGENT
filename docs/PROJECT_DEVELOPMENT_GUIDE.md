@@ -170,7 +170,8 @@ and what comes next). No next phase starts without approval of the previous repo
 | Document | Role |
 |---|---|
 | `docs/PROJECT_DEVELOPMENT_GUIDE.md` | **Governing document (this file)** |
-| `docs/DELIVERY_MANAGEMENT_PLAN.md` | Active module plan: Delivery Management (D1–D6) |
+| `docs/REMAINING_PROJECT_ROADMAP.md` | **Authoritative roadmap for all work after D6.2** — Delivery completion, OCR, Analytics, Infrastructure, and SaaS tracks, with release milestones |
+| `docs/DELIVERY_MANAGEMENT_PLAN.md` | Delivery Management module plan: detailed D1–D6.2 phase history and design (completed); see the roadmap above for D7 onward |
 | `docs/NEXT_PHASES.md` | Historical recommendations/risk register from the SaaS migration; superseded on governance by this guide |
 | `docs/SAAS_MIGRATION_PLAN.md` | Historical record of the Streamlit → SaaS migration (Phases 8A–8H) |
 | `docs/API_AUTHENTICATION.md` | apps/web ↔ apps/api trust boundary (Phase 10) |
@@ -181,10 +182,13 @@ and what comes next). No next phase starts without approval of the previous repo
 
 ## 9. Active Modules
 
-- **Delivery Management** — planned in `docs/DELIVERY_MANAGEMENT_PLAN.md`; phases
-  D1–D6; D1 not yet started. This module supersedes, with approval, the
-  "no user roles yet" and "no admin dashboard yet" entries in `docs/NEXT_PHASES.md` —
-  via a minimal identity foundation in D1 (OWNER/DRIVER roles, individual
-  username/password accounts on the existing `User` model; no user-management
-  system). A shared driver password was explicitly rejected: delivery proofs must be
-  attributable to an individual driver from the first record.
+- **Delivery Management** — D1 through D6.2 are complete and shipped (see
+  `docs/DELIVERY_MANAGEMENT_PLAN.md` §9 for the detailed per-phase history). This
+  module superseded, with approval, the "no user roles yet" and "no admin dashboard
+  yet" entries in `docs/NEXT_PHASES.md` via a minimal identity foundation in D1
+  (OWNER/DRIVER roles, individual username/password accounts on the existing `User`
+  model; no user-management system). A shared driver password was explicitly
+  rejected: delivery proofs must be attributable to an individual driver from the
+  first record. **Remaining work (D7 onward, plus OCR/Analytics/Infrastructure/SaaS
+  tracks) is planned in `docs/REMAINING_PROJECT_ROADMAP.md`**, the current
+  authoritative roadmap — consult it before starting any new phase.
