@@ -21,6 +21,9 @@ export default defineConfig({
       // Delivery D3: dedicated upload directory for tests — never the dev
       // one; suites clean up after themselves (git-ignored regardless).
       UPLOAD_DIR: "./prisma/test-uploads",
+      // Delivery D6.1: business timezone the summary action reads. Boundary
+      // tests pass a zone explicitly; this covers the action's default read.
+      BUSINESS_TIMEZONE: "Asia/Qatar",
     },
     // SQLite allows exactly one writer at a time. Since D1 two suites
     // (conversations, auth-credentials) write to the same test.db, and

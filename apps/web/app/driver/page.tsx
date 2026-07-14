@@ -7,6 +7,7 @@ import {
 import DriverUploadForm from "@/components/DriverUploadForm";
 import DriverSummary from "@/components/DriverSummary";
 import ProofStatusBadge from "@/components/ProofStatusBadge";
+import { businessTimeZoneLabel } from "@/lib/business-time";
 
 /**
  * Driver dashboard (Delivery D6): a daily workspace, not just an upload
@@ -31,7 +32,10 @@ export default async function DriverPage() {
       </p>
 
       <section className="space-y-3">
-        <h2 className="text-base font-semibold text-ink">Today&apos;s Summary</h2>
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="text-base font-semibold text-ink">Today&apos;s Summary</h2>
+          <span className="text-xs text-ink-dim">Today — {businessTimeZoneLabel()} time</span>
+        </div>
         <DriverSummary summary={summary} />
       </section>
 

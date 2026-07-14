@@ -13,6 +13,7 @@ import {
   getMyDeliveryProofSummary,
   getMyDeliveryProof,
 } from "@/app/actions/delivery-proofs";
+import { businessDayRangeUtc } from "@/lib/business-time";
 import { prisma } from "@/lib/db";
 
 const mockedAuth = vi.mocked(auth);
@@ -21,6 +22,7 @@ const RUN = Date.now();
 const OWNER_ID = `dd-owner-${RUN}`;
 const DRIVER_A = `dd-driver-a-${RUN}`;
 const DRIVER_B = `dd-driver-b-${RUN}`;
+const DRIVER_C = `dd-driver-c-${RUN}`;
 
 function mockSessionFor(userId: string, role?: string) {
   mockedAuth.mockResolvedValue({
@@ -47,6 +49,7 @@ beforeAll(async () => {
       { id: OWNER_ID, username: OWNER_ID, passwordHash: "", role: "OWNER" },
       { id: DRIVER_A, username: DRIVER_A, passwordHash: "", role: "DRIVER" },
       { id: DRIVER_B, username: DRIVER_B, passwordHash: "", role: "DRIVER" },
+      { id: DRIVER_C, username: DRIVER_C, passwordHash: "", role: "DRIVER" },
     ],
   });
 
@@ -61,7 +64,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.user.deleteMany({ where: { id: { in: [OWNER_ID, DRIVER_A, DRIVER_B] } } });
+  await prisma.user.deleteMany({
+    where: { id: { in: [OWNER_ID, DRIVER_A, DRIVER_B, DRIVER_C] } },
+  });
 });
 
 describe("getMyDeliveryProofSummary (D6) — counts are correct and driver-scoped", () => {
@@ -146,5 +151,35 @@ describe("getMyDeliveryProof (D6) — own detail only, no owner-only fields", ()
 
     mockedAuth.mockResolvedValue(null);
     await expect(getMyDeliveryProof(a_pending)).rejects.toThrow(/not authenticated/i);
+  });
+});
+
+describe("uploadedToday uses the business-timezone day boundaries (D6.1)", () => {
+  // Vitest sets BUSINESS_TIMEZONE=Asia/Qatar, so the summary reads the same
+  // range this test computes. Timestamps are placed relative to the current
+  // business day so the assertion is deterministic regardless of when it runs.
+  it("counts inclusive-start, excludes before-start and the exclusive end", async () => {
+    const { startUtc, endUtc } = businessDayRangeUtc();
+
+    await prisma.deliveryProof.createMany({
+      data: [
+        // Exactly at local midnight → counts as today (gte start).
+        { driverId: DRIVER_C, invoiceNumber: `DD-C-START-${RUN}`, uploadedAt: startUtc },
+        // One millisecond before local midnight → yesterday, excluded.
+        {
+          driverId: DRIVER_C,
+          invoiceNumber: `DD-C-BEFORE-${RUN}`,
+          uploadedAt: new Date(startUtc.getTime() - 1),
+        },
+        // Exactly at the exclusive end (next local midnight) → tomorrow, excluded.
+        { driverId: DRIVER_C, invoiceNumber: `DD-C-END-${RUN}`, uploadedAt: endUtc },
+      ],
+    });
+
+    mockSessionFor(DRIVER_C, "DRIVER");
+    const summary = await getMyDeliveryProofSummary();
+
+    expect(summary.total).toBe(3); // all three exist...
+    expect(summary.uploadedToday).toBe(1); // ...but only the start-of-day one is "today"
   });
 });

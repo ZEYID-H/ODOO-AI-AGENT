@@ -18,6 +18,7 @@ import { revalidatePath } from "next/cache";
 import { requireActionRole } from "@/lib/session-guard";
 import { prisma } from "@/lib/db";
 import { saveProofImage, deleteProofImage } from "@/lib/file-storage";
+import { businessDayRangeUtc } from "@/lib/business-time";
 
 export type DeliveryProofStatus = "PENDING" | "VERIFIED" | "REJECTED";
 export type OcrStatus = "NOT_STARTED" | "PROCESSING" | "COMPLETED" | "FAILED";
@@ -203,23 +204,28 @@ export interface DriverProofSummary {
 }
 
 /**
- * DRIVER dashboard summary (D6): counts scoped to the session's own proofs
- * — never a client-supplied driver id. "Today" is the current server day
- * (the container runs UTC); a per-driver timezone is out of scope for this
- * phase (see the D6 known-issues note). Counts come from the database, not
- * from a fetched-and-filtered list, so the numbers stay correct regardless
- * of any list pagination a later phase adds.
+ * DRIVER dashboard summary (D6, timezone-corrected in D6.1): counts scoped
+ * to the session's own proofs — never a client-supplied driver id. "Today"
+ * is the current calendar day in the configured business timezone
+ * (BUSINESS_TIMEZONE, e.g. Asia/Qatar), computed once as a half-open UTC
+ * range [startUtc, endUtc) — see lib/business-time.ts. The server is
+ * authoritative; a timezone from the browser is never trusted. The
+ * pending/verified/rejected/total counts are the driver's overall standing
+ * (all-time, unchanged from D6 — only the day boundary was wrong before).
+ * Counts come from the database, not from a fetched-and-filtered list, so
+ * they stay correct regardless of any list pagination a later phase adds.
  */
 export async function getMyDeliveryProofSummary(): Promise<DriverProofSummary> {
   const session = await requireActionRole("DRIVER");
   const driverId = session.user.id;
 
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
+  const { startUtc, endUtc } = businessDayRangeUtc();
 
   const [total, uploadedToday, pending, verified, rejected] = await Promise.all([
     prisma.deliveryProof.count({ where: { driverId } }),
-    prisma.deliveryProof.count({ where: { driverId, uploadedAt: { gte: startOfToday } } }),
+    prisma.deliveryProof.count({
+      where: { driverId, uploadedAt: { gte: startUtc, lt: endUtc } },
+    }),
     prisma.deliveryProof.count({ where: { driverId, status: "PENDING" } }),
     prisma.deliveryProof.count({ where: { driverId, status: "VERIFIED" } }),
     prisma.deliveryProof.count({ where: { driverId, status: "REJECTED" } }),

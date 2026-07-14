@@ -382,6 +382,39 @@ One phase per implementation session; each phase ends with the validation checkl
 (§11) and the report format (§12); no phase begins without the previous one committed
 and green.
 
+### Roadmap status (reconciled as of D6.1)
+
+The roadmap evolved as the module was built; this is the authoritative record of what
+is done versus planned. Notably, the original "D6 — OCR Planning Only" was **not** the
+phase built at D6: the driver dashboard was prioritized instead (approved by explicit
+phase instruction), so OCR planning/design moves to a dedicated future phase. The
+per-phase sections below retain their original design text as reference; where a
+heading differs from what shipped, this table is authoritative.
+
+**Completed and shipped:**
+
+- **D1 — Minimal Identity Foundation** — OWNER/DRIVER roles, individual accounts
+- **D1.1 — Security Closure** — every Server Action role-gated; conversations OWNER-only
+- **D2 — Delivery Proof Data Model** — metadata persistence, guarded actions
+- **D3 — Driver Upload MVP** — image storage, authenticated serving, mobile upload
+- **D4 — Owner Review Workflow** — review queue, details page, verify/reject audit trail
+- **D5 — OCR Readiness Data Foundation** — schema fields + guarded recorder, no engine
+- **D6 — Driver Dashboard & Delivery Status** — today's summary, recent uploads, detail view
+- **D6.1 — Business Timezone Closure** — `BUSINESS_TIMEZONE`-aware "today" boundaries
+
+**Future phases (planned, NOT implemented — no code exists for these):**
+
+- **D7 — Rejected Proof Resubmission** — let drivers re-upload after a rejection
+- **D8 — Driver Notifications** — notify drivers of verify/reject outcomes
+- **OCR design/implementation phases** — the extraction engine and its planning
+  (the original "D6 — OCR Planning" content below is the seed for this)
+- **Odoo invoice matching** — cross-reference extracted data via the read-only gateway
+- **Delivery analytics** — owner-side reporting/trends over proof data
+
+The per-phase design sections that follow (D1–D6) predate this reconciliation and are
+kept for their design rationale; treat the table above as the source of truth for
+status.
+
 ### D1 — Minimal Identity Foundation
 
 **Goal:** Introduce the minimal identity foundation required for the Driver Portal:
@@ -617,7 +650,12 @@ root, capability re-adds), stop and ask.
 
 ---
 
-### D6 — OCR Planning Only
+### D6 (original plan) — OCR Planning Only
+
+> **Superseded (see Roadmap status above):** D6 shipped as the **Driver Dashboard &
+> Delivery Status** phase, not this OCR-planning phase. The text below is retained as
+> the seed design for the future OCR planning/implementation phases, which remain
+> unimplemented.
 
 **Goal:** Plan future OCR without implementing it.
 
