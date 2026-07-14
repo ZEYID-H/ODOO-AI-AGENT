@@ -401,6 +401,19 @@ heading differs from what shipped, this table is authoritative.
 - **D5 — OCR Readiness Data Foundation** — schema fields + guarded recorder, no engine
 - **D6 — Driver Dashboard & Delivery Status** — today's summary, recent uploads, detail view
 - **D6.1 — Business Timezone Closure** — `BUSINESS_TIMEZONE`-aware "today" boundaries
+- **D6.2 — Driver Summary Semantics Closure** — all four Today's Summary cards
+  (uploaded/pending/verified/rejected) are day-scoped to the business-day range, not
+  just "uploaded today"; see the definition below.
+
+**Today's Summary, defined (as of D6.2):** every card on the driver dashboard's
+Today's Summary is scoped to proofs **uploaded** during the current business day
+(`BUSINESS_TIMEZONE`, half-open UTC range `[startUtc, endUtc)`), grouped by their
+**current** status — not by when they were reviewed. "Uploaded today" = all proofs
+uploaded today, any status. "Pending/Verified/Rejected today" = proofs uploaded today
+whose current status is that value. A proof uploaded yesterday and reviewed today is
+*not* counted in any of today's cards (`verifiedAt` is deliberately not the date basis
+here). The `total` field returned by `getMyDeliveryProofSummary` keeps its original
+all-time meaning and is unrelated to these four cards (not currently rendered in the UI).
 
 **Future phases (planned, NOT implemented — no code exists for these):**
 

@@ -69,16 +69,20 @@ afterAll(async () => {
   });
 });
 
-describe("getMyDeliveryProofSummary (D6) — counts are correct and driver-scoped", () => {
-  it("counts only the session driver's proofs, by status", async () => {
+describe("getMyDeliveryProofSummary (D6, day-scoped in D6.2) — counts are correct and driver-scoped", () => {
+  it("counts only the session driver's proofs, by status — all uploaded today so all cards match", async () => {
     mockSessionFor(DRIVER_A, "DRIVER");
     const summary = await getMyDeliveryProofSummary();
 
+    // total stays all-time (unrelated to the four day-scoped cards).
     expect(summary.total).toBe(3);
+    // All three were created during this test run → all fall inside today's
+    // business-day range, so the day-scoped cards equal the per-status
+    // breakdown of "today" here (there is nothing uploaded on another day
+    // for driver A in this suite).
     expect(summary.pending).toBe(1);
     expect(summary.verified).toBe(1);
     expect(summary.rejected).toBe(1);
-    // All three were created during this test run → all "today".
     expect(summary.uploadedToday).toBe(3);
   });
 
@@ -181,5 +185,131 @@ describe("uploadedToday uses the business-timezone day boundaries (D6.1)", () =>
 
     expect(summary.total).toBe(3); // all three exist...
     expect(summary.uploadedToday).toBe(1); // ...but only the start-of-day one is "today"
+  });
+});
+
+describe("Today's Summary is fully day-scoped (D6.2) — pending/verified/rejected too", () => {
+  // A dedicated driver + a fixed, fully-controlled set of rows (created
+  // directly via Prisma, not the actions, so both uploadedAt AND status can
+  // be pinned independently of the real review workflow — this suite tests
+  // the summary QUERY's semantics, not the review transitions themselves,
+  // which are covered in delivery-review.test.ts). Every timestamp is
+  // computed from businessDayRangeUtc() so the suite never depends on the
+  // host machine's date or timezone.
+  const DRIVER_D = `dd-driver-d-${RUN}`;
+  const DRIVER_E = `dd-driver-e-${RUN}`; // isolation control
+
+  beforeAll(async () => {
+    await prisma.user.createMany({
+      data: [
+        { id: DRIVER_D, username: DRIVER_D, passwordHash: "", role: "DRIVER" },
+        { id: DRIVER_E, username: DRIVER_E, passwordHash: "", role: "DRIVER" },
+      ],
+    });
+
+    const { startUtc, endUtc } = businessDayRangeUtc();
+    const midToday = new Date(startUtc.getTime() + 12 * 3600_000); // safely inside today
+    const beforeStart = new Date(startUtc.getTime() - 1); // yesterday (exclusive)
+    const atEnd = endUtc; // tomorrow (exclusive)
+
+    await prisma.deliveryProof.createMany({
+      data: [
+        // --- DRIVER_D: today, one of each status, all three cards exercised ---
+        { driverId: DRIVER_D, invoiceNumber: `DD-D-TODAY-PEND-1-${RUN}`, status: "PENDING", uploadedAt: midToday },
+        { driverId: DRIVER_D, invoiceNumber: `DD-D-TODAY-PEND-2-${RUN}`, status: "PENDING", uploadedAt: startUtc },
+        { driverId: DRIVER_D, invoiceNumber: `DD-D-TODAY-VER-${RUN}`, status: "VERIFIED", uploadedAt: midToday },
+        { driverId: DRIVER_D, invoiceNumber: `DD-D-TODAY-REJ-${RUN}`, status: "REJECTED", uploadedAt: midToday },
+        // --- DRIVER_D: yesterday, one of each status — must NOT count on any card ---
+        { driverId: DRIVER_D, invoiceNumber: `DD-D-YEST-PEND-${RUN}`, status: "PENDING", uploadedAt: beforeStart },
+        { driverId: DRIVER_D, invoiceNumber: `DD-D-YEST-VER-${RUN}`, status: "VERIFIED", uploadedAt: beforeStart },
+        { driverId: DRIVER_D, invoiceNumber: `DD-D-YEST-REJ-${RUN}`, status: "REJECTED", uploadedAt: beforeStart },
+        // --- DRIVER_D: exactly at the exclusive end (tomorrow) — must NOT count ---
+        { driverId: DRIVER_D, invoiceNumber: `DD-D-TOMORROW-PEND-${RUN}`, status: "PENDING", uploadedAt: atEnd },
+        // --- DRIVER_E: today, PENDING — isolation control, must not affect DRIVER_D ---
+        { driverId: DRIVER_E, invoiceNumber: `DD-E-TODAY-PEND-${RUN}`, status: "PENDING", uploadedAt: midToday },
+      ],
+    });
+  });
+
+  afterAll(async () => {
+    // Cascades to each driver's DeliveryProof rows via onDelete: Cascade.
+    await prisma.user.deleteMany({ where: { id: { in: [DRIVER_D, DRIVER_E] } } });
+  });
+
+  it("uploadedToday counts every status uploaded today, and only today", async () => {
+    mockSessionFor(DRIVER_D, "DRIVER");
+    const summary = await getMyDeliveryProofSummary();
+    // 2 pending + 1 verified + 1 rejected, all uploaded today.
+    expect(summary.uploadedToday).toBe(4);
+  });
+
+  it("pending counts only PENDING proofs uploaded today", async () => {
+    mockSessionFor(DRIVER_D, "DRIVER");
+    const summary = await getMyDeliveryProofSummary();
+    expect(summary.pending).toBe(2); // not the yesterday or tomorrow PENDING rows
+  });
+
+  it("verified counts only VERIFIED proofs uploaded today", async () => {
+    mockSessionFor(DRIVER_D, "DRIVER");
+    const summary = await getMyDeliveryProofSummary();
+    expect(summary.verified).toBe(1); // not yesterday's VERIFIED row
+  });
+
+  it("rejected counts only REJECTED proofs uploaded today", async () => {
+    mockSessionFor(DRIVER_D, "DRIVER");
+    const summary = await getMyDeliveryProofSummary();
+    expect(summary.rejected).toBe(1); // not yesterday's REJECTED row
+  });
+
+  it("proofs uploaded outside today's Qatar range affect no card, even though they exist (total does)", async () => {
+    mockSessionFor(DRIVER_D, "DRIVER");
+    const summary = await getMyDeliveryProofSummary();
+    // 4 today + 3 yesterday + 1 tomorrow = 8 rows exist for this driver.
+    expect(summary.total).toBe(8);
+    // But every day-scoped card only ever reflects the 4 uploaded today.
+    expect(summary.uploadedToday + 0).toBe(4);
+    expect(summary.pending).toBe(2);
+    expect(summary.verified).toBe(1);
+    expect(summary.rejected).toBe(1);
+    expect(summary.pending + summary.verified + summary.rejected).toBe(summary.uploadedToday);
+  });
+
+  it("inclusive start boundary: a proof at exactly startUtc counts today (already covered above, asserted directly)", async () => {
+    const { startUtc } = businessDayRangeUtc();
+    const atStart = await prisma.deliveryProof.findFirst({
+      where: { driverId: DRIVER_D, invoiceNumber: `DD-D-TODAY-PEND-2-${RUN}` },
+    });
+    expect(atStart?.uploadedAt.getTime()).toBe(startUtc.getTime());
+
+    mockSessionFor(DRIVER_D, "DRIVER");
+    const summary = await getMyDeliveryProofSummary();
+    // DD-D-TODAY-PEND-2 (at startUtc) is one of the 2 counted PENDING today.
+    expect(summary.pending).toBe(2);
+  });
+
+  it("exclusive end boundary: a proof at exactly endUtc does NOT count today", async () => {
+    const { endUtc } = businessDayRangeUtc();
+    const atEndRow = await prisma.deliveryProof.findFirst({
+      where: { driverId: DRIVER_D, invoiceNumber: `DD-D-TOMORROW-PEND-${RUN}` },
+    });
+    expect(atEndRow?.uploadedAt.getTime()).toBe(endUtc.getTime());
+
+    mockSessionFor(DRIVER_D, "DRIVER");
+    const summary = await getMyDeliveryProofSummary();
+    // Still 2 pending today — the at-endUtc row is excluded, not a 3rd.
+    expect(summary.pending).toBe(2);
+  });
+
+  it("another driver's records — even uploaded today with the same status — never affect the count", async () => {
+    mockSessionFor(DRIVER_D, "DRIVER");
+    const dSummary = await getMyDeliveryProofSummary();
+    expect(dSummary.pending).toBe(2); // not 3 — DRIVER_E's today-PENDING row excluded
+
+    mockSessionFor(DRIVER_E, "DRIVER");
+    const eSummary = await getMyDeliveryProofSummary();
+    expect(eSummary.uploadedToday).toBe(1);
+    expect(eSummary.pending).toBe(1);
+    expect(eSummary.verified).toBe(0);
+    expect(eSummary.rejected).toBe(0);
   });
 });

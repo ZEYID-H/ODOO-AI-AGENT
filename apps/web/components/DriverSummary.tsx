@@ -1,10 +1,13 @@
 import type { DriverProofSummary } from "@/app/actions/delivery-proofs";
 
 /**
- * Today's Summary for the driver dashboard (D6) — pure presentation over
- * counts the server action already computed. Mobile-first: a 2×2 grid of
- * large, readable stat cards. Status colors match ProofStatusBadge so
- * "pending / verified / rejected" reads the same everywhere.
+ * Today's Summary for the driver dashboard (D6, fully day-scoped in D6.2)
+ * — pure presentation over counts the server action already computed. All
+ * four cards describe proofs uploaded today: labels say "today" explicitly
+ * so the semantics match (pending/verified/rejected here are NOT the
+ * driver's all-time standing). Mobile-first: a 2×2 grid of large, readable
+ * stat cards. Status colors match ProofStatusBadge so "pending / verified /
+ * rejected" reads the same everywhere.
  */
 const CARDS: {
   key: keyof DriverProofSummary;
@@ -12,9 +15,9 @@ const CARDS: {
   className: string;
 }[] = [
   { key: "uploadedToday", label: "Uploaded today", className: "text-ink" },
-  { key: "pending", label: "Pending review", className: "text-warn" },
-  { key: "verified", label: "Verified", className: "text-accent" },
-  { key: "rejected", label: "Rejected", className: "text-danger" },
+  { key: "pending", label: "Pending today", className: "text-warn" },
+  { key: "verified", label: "Verified today", className: "text-accent" },
+  { key: "rejected", label: "Rejected today", className: "text-danger" },
 ];
 
 export default function DriverSummary({ summary }: { summary: DriverProofSummary }) {

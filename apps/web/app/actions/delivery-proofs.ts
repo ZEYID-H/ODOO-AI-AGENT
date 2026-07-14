@@ -204,16 +204,24 @@ export interface DriverProofSummary {
 }
 
 /**
- * DRIVER dashboard summary (D6, timezone-corrected in D6.1): counts scoped
- * to the session's own proofs — never a client-supplied driver id. "Today"
- * is the current calendar day in the configured business timezone
- * (BUSINESS_TIMEZONE, e.g. Asia/Qatar), computed once as a half-open UTC
- * range [startUtc, endUtc) — see lib/business-time.ts. The server is
- * authoritative; a timezone from the browser is never trusted. The
- * pending/verified/rejected/total counts are the driver's overall standing
- * (all-time, unchanged from D6 — only the day boundary was wrong before).
- * Counts come from the database, not from a fetched-and-filtered list, so
- * they stay correct regardless of any list pagination a later phase adds.
+ * DRIVER dashboard summary (D6, timezone-corrected in D6.1, made fully
+ * day-scoped in D6.2): "Today's Summary" now means exactly that for all
+ * four cards. Each is a proof UPLOADED today (BUSINESS_TIMEZONE calendar
+ * day, half-open UTC range [startUtc, endUtc) from lib/business-time.ts)
+ * whose CURRENT status is the given one — grouped by upload day, not by
+ * when it was reviewed (verifiedAt is deliberately not the date basis
+ * here: a proof uploaded yesterday and verified today still is not part of
+ * today's uploads). Scoped to the session's own proofs — never a
+ * client-supplied driver id or timezone.
+ *
+ * Query shape: one groupBy (status counts among today's uploads) instead
+ * of three separate status-filtered counts — same round-trip whether the
+ * driver has zero or a thousand proofs today, no full rows fetched just to
+ * count them. uploadedToday is the sum of that grouped result (every
+ * status that exists is already in the groupBy — a proof always has a
+ * status), so it needs no separate query. `total` keeps its original
+ * all-time meaning (unrelated to the four day-scoped cards; not shown in
+ * the current UI) and stays a single plain count, as before.
  */
 export async function getMyDeliveryProofSummary(): Promise<DriverProofSummary> {
   const session = await requireActionRole("DRIVER");
@@ -221,15 +229,26 @@ export async function getMyDeliveryProofSummary(): Promise<DriverProofSummary> {
 
   const { startUtc, endUtc } = businessDayRangeUtc();
 
-  const [total, uploadedToday, pending, verified, rejected] = await Promise.all([
+  const [total, todayByStatus] = await Promise.all([
     prisma.deliveryProof.count({ where: { driverId } }),
-    prisma.deliveryProof.count({
+    prisma.deliveryProof.groupBy({
+      by: ["status"],
       where: { driverId, uploadedAt: { gte: startUtc, lt: endUtc } },
+      _count: { _all: true },
     }),
-    prisma.deliveryProof.count({ where: { driverId, status: "PENDING" } }),
-    prisma.deliveryProof.count({ where: { driverId, status: "VERIFIED" } }),
-    prisma.deliveryProof.count({ where: { driverId, status: "REJECTED" } }),
   ]);
+
+  let pending = 0;
+  let verified = 0;
+  let rejected = 0;
+  let uploadedToday = 0;
+  for (const row of todayByStatus) {
+    const count = row._count._all;
+    uploadedToday += count;
+    if (row.status === "PENDING") pending = count;
+    else if (row.status === "VERIFIED") verified = count;
+    else if (row.status === "REJECTED") rejected = count;
+  }
 
   return { uploadedToday, pending, verified, rejected, total };
 }
