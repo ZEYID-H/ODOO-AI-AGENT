@@ -194,6 +194,60 @@ export async function listMyDeliveryProofs(): Promise<DeliveryProofView[]> {
   return proofs.map(toView);
 }
 
+export interface DriverProofSummary {
+  uploadedToday: number;
+  pending: number;
+  verified: number;
+  rejected: number;
+  total: number;
+}
+
+/**
+ * DRIVER dashboard summary (D6): counts scoped to the session's own proofs
+ * — never a client-supplied driver id. "Today" is the current server day
+ * (the container runs UTC); a per-driver timezone is out of scope for this
+ * phase (see the D6 known-issues note). Counts come from the database, not
+ * from a fetched-and-filtered list, so the numbers stay correct regardless
+ * of any list pagination a later phase adds.
+ */
+export async function getMyDeliveryProofSummary(): Promise<DriverProofSummary> {
+  const session = await requireActionRole("DRIVER");
+  const driverId = session.user.id;
+
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  const [total, uploadedToday, pending, verified, rejected] = await Promise.all([
+    prisma.deliveryProof.count({ where: { driverId } }),
+    prisma.deliveryProof.count({ where: { driverId, uploadedAt: { gte: startOfToday } } }),
+    prisma.deliveryProof.count({ where: { driverId, status: "PENDING" } }),
+    prisma.deliveryProof.count({ where: { driverId, status: "VERIFIED" } }),
+    prisma.deliveryProof.count({ where: { driverId, status: "REJECTED" } }),
+  ]);
+
+  return { uploadedToday, pending, verified, rejected, total };
+}
+
+/**
+ * DRIVER: one of their OWN proofs by id (D6 detail view). Scoped to the
+ * session driver in the WHERE clause, so another driver's id — or an
+ * unknown id — is indistinguishable (both null), exactly like the image
+ * route. Returns the driver-safe DeliveryProofView, which by construction
+ * carries no OCR or reviewer-identity fields.
+ */
+export async function getMyDeliveryProof(
+  proofId: string
+): Promise<DeliveryProofView | null> {
+  const session = await requireActionRole("DRIVER");
+  if (typeof proofId !== "string" || proofId.length === 0) {
+    return null;
+  }
+  const proof = await prisma.deliveryProof.findFirst({
+    where: { id: proofId, driverId: session.user.id },
+  });
+  return proof ? toView(proof) : null;
+}
+
 /** Review-queue precedence (D4): work that needs attention comes first;
  * decided proofs follow, grouped by outcome, newest first within each. */
 const STATUS_QUEUE_RANK: Record<DeliveryProofStatus, number> = {
