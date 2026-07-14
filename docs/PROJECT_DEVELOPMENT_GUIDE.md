@@ -170,8 +170,9 @@ and what comes next). No next phase starts without approval of the previous repo
 | Document | Role |
 |---|---|
 | `docs/PROJECT_DEVELOPMENT_GUIDE.md` | **Governing document (this file)** |
-| `docs/REMAINING_PROJECT_ROADMAP.md` | **Authoritative roadmap for all work after D6.2** — Delivery completion, OCR, Analytics, Infrastructure, and SaaS tracks, with release milestones |
-| `docs/DELIVERY_MANAGEMENT_PLAN.md` | Delivery Management module plan: detailed D1–D6.2 phase history and design (completed); see the roadmap above for D7 onward |
+| `docs/AI_AGENT_COMPLETION_PLAN.md` | **Authoritative roadmap for completing and releasing the core Odoo AI Agent** (AG1–AG8, current top priority) — tool inventory, gap analysis, release milestones |
+| `docs/REMAINING_PROJECT_ROADMAP.md` | Authoritative roadmap for Delivery Management's remaining work (D9 onward) and the OCR, Analytics, Infrastructure, and SaaS tracks — currently **paused** until the AI Agent plan's Milestone C ships |
+| `docs/DELIVERY_MANAGEMENT_PLAN.md` | Delivery Management module plan: detailed D1–D8 phase history and design (completed, frozen); see the roadmap above for D9 onward |
 | `docs/NEXT_PHASES.md` | Historical recommendations/risk register from the SaaS migration; superseded on governance by this guide |
 | `docs/SAAS_MIGRATION_PLAN.md` | Historical record of the Streamlit → SaaS migration (Phases 8A–8H) |
 | `docs/API_AUTHENTICATION.md` | apps/web ↔ apps/api trust boundary (Phase 10) |
@@ -182,13 +183,22 @@ and what comes next). No next phase starts without approval of the previous repo
 
 ## 9. Active Modules
 
-- **Delivery Management** — D1 through D6.2 are complete and shipped (see
+- **Odoo AI Agent (core product)** — the current top priority. Tool registry,
+  routing, and the `apps/web`/`apps/api` chat surface are functional and tested,
+  but v1 release readiness (evaluation coverage, live-Odoo validation, production
+  deployment) is not yet complete. **Planned in
+  `docs/AI_AGENT_COMPLETION_PLAN.md`** (phases AG1–AG8) — consult it before
+  starting any AI Agent work.
+- **Delivery Management** — D1 through D8 are complete and shipped (see
   `docs/DELIVERY_MANAGEMENT_PLAN.md` §9 for the detailed per-phase history). This
   module superseded, with approval, the "no user roles yet" and "no admin dashboard
   yet" entries in `docs/NEXT_PHASES.md` via a minimal identity foundation in D1
   (OWNER/DRIVER roles, individual username/password accounts on the existing `User`
   model; no user-management system). A shared driver password was explicitly
   rejected: delivery proofs must be attributable to an individual driver from the
-  first record. **Remaining work (D7 onward, plus OCR/Analytics/Infrastructure/SaaS
-  tracks) is planned in `docs/REMAINING_PROJECT_ROADMAP.md`**, the current
-  authoritative roadmap — consult it before starting any new phase.
+  first record. **The module is now frozen** — D9 (Internal Pilot Readiness) and
+  all later Delivery/OCR/Analytics/Infrastructure/SaaS tracks are paused until the
+  AI Agent Completion Plan's Milestone C ships; see
+  `docs/REMAINING_PROJECT_ROADMAP.md` for that paused roadmap. Delivery D1–D8 stays
+  fully in place and untouched unless a critical shared-platform regression is
+  found.

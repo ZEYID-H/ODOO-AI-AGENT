@@ -1,5 +1,17 @@
 # Remaining Project Roadmap — Kaizera AI Platform
 
+**⏸️ PAUSED — priority changed.** As of this note, project focus has moved back to
+finishing and releasing the core **Odoo AI Agent**. Delivery Management is frozen,
+complete and functional through **D8** (in place, tested, untouched). **D9 (Internal
+Pilot Readiness) and every phase below it in this document — the OCR, Analytics,
+Infrastructure, and SaaS tracks — are paused**, not cancelled, until
+`docs/AI_AGENT_COMPLETION_PLAN.md`'s Milestone C (AI Agent v1 internal release)
+ships. No human Delivery pilot has been run. This document's content below is left
+exactly as it was — a valid, ready-to-resume plan — and is not rewritten by this
+pause notice; only §10's "Priority Recommendation" gets a status update pointing
+at the pause. Resume by re-reading this file's own §10 once the AI Agent plan's
+Milestone C is complete.
+
 **Status:** Authoritative roadmap for all work remaining after the Delivery Management
 module's identity/upload/review/dashboard foundation. Governed by
 `docs/PROJECT_DEVELOPMENT_GUIDE.md` (architecture boundaries, the planning gate, the
@@ -730,16 +742,22 @@ is planned using this template, matching the planning gate in
 
 ## 10. Priority Recommendation
 
-**Immediate order, reconciled against verified reality (D6.2, D7, and D8 are all
-already complete):**
+**⏸️ SUPERSEDED BY THE PAUSE NOTICE AT THE TOP OF THIS FILE.** This section's
+ordering (D9 → O1 → OCR) remains valid and ready to resume, but it is not the
+project's current priority. The actual current priority is
+`docs/AI_AGENT_COMPLETION_PLAN.md`'s AG1, not D9 — see that file. Re-activate the
+order below once the AI Agent plan's Milestone C ships.
+
+**Immediate order once resumed, reconciled against verified reality (D6.2, D7, and
+D8 are all already complete):**
 
 1. ~~D6.2~~ — **already complete** (`e98cd84`).
 2. ~~D7 — Rejected Proof Resubmission~~ — **already complete**; see this document's
    D7 section above for what shipped.
 3. ~~D8 — Driver In-App Notifications~~ — **already complete**; see this document's
    D8 section above for what shipped.
-4. **D9 — Internal Pilot and Operational Validation** (the actual immediate next
-   phase)
+4. **D9 — Internal Pilot and Operational Validation** (the next Delivery phase,
+   once resumed — not started; paused, per the notice above)
 5. O1 — only after pilot feedback confirms OCR is worth pursuing
 6. Continue OCR (O2 onward) only if the pilot confirms it provides meaningful value
 
