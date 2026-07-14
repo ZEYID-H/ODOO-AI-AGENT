@@ -189,12 +189,10 @@ and the core chat round-trip are all verified in place and tested.
 
 ### High
 - **H1 — No evaluation suite exists for routing/tool-selection accuracy.**
-  Evidence: no file under `tests/` or `apps/api/tests/` exercises
-  `route_query()`'s tool-selection decision against a fixed set of English/
-  Arabic queries with an expected tool; `_detect_intent()`'s ~40 keyword rules
-  in `src/agent/router.py` have zero regression coverage for
-  misrouting/ambiguity. This blocks completion criterion §3.2 outright — it is
-  AG1's entire purpose.
+  ✅ **Resolved by AG1** (`docs/AI_AGENT_EVALUATION_BASELINE.md`) — 75-case
+  dataset, 30 deterministic tests, one live baseline run. Note: resolving H1
+  built the measurement, not a fix — it surfaced concrete misrouting/ambiguity
+  findings in `_detect_intent()`'s keyword rules that remain open, owned by AG3.
 - **H2 — No per-tool business-logic correctness tests.** Evidence: §2's table;
   `tests/test_provider.py` verifies data-shape parity, not computed correctness
   (e.g., no test asserts `get_collection_priorities`'s documented
@@ -285,6 +283,23 @@ recommends sequential execution to keep each phase's diff reviewable, matching
 every prior phase in this project's history.
 
 ### AG1 — Capability Inventory and Evaluation Baseline
+
+> **✅ Complete (2026-07-14).** Full results, methodology, coverage matrix, and
+> every finding: `docs/AI_AGENT_EVALUATION_BASELINE.md`. Summary: 75-case
+> dataset (`tests/evals/agent_cases.json`) covering all 14 registered tools in
+> English and Arabic; 30 deterministic Layer A tests (`tests/evals/test_*.py`,
+> 0 network calls) plus one live, model-assisted Layer B run against the
+> real configured model (probe-substituted — no business logic or live Odoo
+> ever executed) — 68/72 executed cases passed. 4 real, reproducible routing
+> defects found on the live path and 5 more proven deterministically on the
+> rule-based fallback path (including the known stale `_THIS_MONTH`/
+> `_THIS_YEAR` constants) — all left unfixed and handed to AG3 per this
+> phase's explicit scope. The evaluation set landed under `tests/evals/`
+> (this plan's original sketch below said `tests/evaluation/`) to match the
+> detailed AG1 task instructions actually given; `scripts/run_agent_evaluation.py`
+> is the one CLI entry point. No file in `src/`, `app.py`,
+> `apps/api/main.py`, or `apps/api/schemas.py` was modified — boundary check
+> verified empty. AG2 has **not** been started.
 
 - **Module owner:** `src/`, `tests/` (read-only discovery — the evaluation set
   itself is data/fixtures, not production code)
@@ -640,8 +655,10 @@ first — AG4 (live Odoo) is the only phase independent enough to
 parallelize, but this plan recommends sequential execution for the same
 reviewability reason every prior phase in this project has used.
 
-**AG1 is not begun by this document.** It requires your explicit approval
-per the planning gate.
+**AG1 is complete** — see the status marker in §5 and
+`docs/AI_AGENT_EVALUATION_BASELINE.md` for the full record. AG2 is the
+logical next phase but has **not** been started and requires its own
+approval per the planning gate, same as every prior phase in this project.
 
 ---
 

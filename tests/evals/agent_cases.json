@@ -1,0 +1,1705 @@
+[
+  {
+    "id": "CB-EN-01",
+    "category": "happy_path",
+    "language": "en",
+    "query": "How much does APPLE MART owe us?",
+    "history": [],
+    "expectedTool": "get_customer_balance",
+    "targetTool": "get_customer_balance",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "outstanding_balance",
+      "overdue_amount",
+      "open_invoice_count",
+      "credit_limit"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "Direct English balance question naming a known mock customer.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "CB-AR-01",
+    "category": "happy_path",
+    "language": "ar",
+    "query": "كم تدين لنا شركة APPLE MART؟",
+    "history": [],
+    "expectedTool": "get_customer_balance",
+    "targetTool": "get_customer_balance",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "outstanding_balance"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "Arabic phrasing (\"How much does APPLE MART company owe us?\") with the customer name kept in Latin script, as a real bilingual user would type it. The rule-based fallback has NO Arabic keyword coverage (_detect_intent only matches English substrings) and returns intent=unknown even though _extract_customer still finds 'APPLE MART' via substring match — verified directly against src/agent/router.py::_rule_based_route(). This case measures the OpenAI path only; see GLOBAL-OPENAI-UNAVAIL-* for the deterministic rule-based-fallback evidence.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "CB-VAR-01",
+    "category": "wording_variation",
+    "language": "en",
+    "query": "What is APPLE MART's outstanding balance?",
+    "history": [],
+    "expectedTool": "get_customer_balance",
+    "targetTool": "get_customer_balance",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "outstanding_balance"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "Possessive phrasing instead of 'how much does X owe'.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "CB-PARAM-01",
+    "category": "unknown_customer",
+    "language": "en",
+    "query": "How much does GALAXY TRADERS owe us?",
+    "history": [],
+    "expectedTool": "get_customer_balance",
+    "targetTool": "get_customer_balance",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "key_exists"
+      }
+    },
+    "requiredFacts": [],
+    "prohibitedClaims": [
+      "a specific balance amount for GALAXY TRADERS"
+    ],
+    "expectedErrorBehavior": "GALAXY TRADERS is not in the 5-customer mock dataset (verified against src/data/mock_data.py). If the OpenAI path extracts customer_name='GALAXY TRADERS' and calls the tool, get_customer_balance() returns {\"error\": \"Customer 'GALAXY TRADERS' not found.\"} (src/tools/customer_tools.py::get_customer_balance), formatted as '**Error:** ...'. The rule-based fallback instead never calls the tool at all: _extract_customer() finds no match in the known list, customer stays None, and _rule_based_route() returns NO_CUSTOMER_MSG directly — a different error message on a different code path. Both are legitimate 'not found' outcomes; this case records which one the currently-active (OpenAI) path actually produces.",
+    "dataMode": "mock",
+    "notes": "Unknown-customer entity-handling probe.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "CU-EN-01",
+    "category": "happy_path",
+    "language": "en",
+    "query": "Get customer summary for APPLE MART",
+    "history": [],
+    "expectedTool": "get_customer_summary",
+    "targetTool": "get_customer_summary",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "total_billed",
+      "total_paid",
+      "outstanding_balance",
+      "invoice_count"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "CU-AR-01",
+    "category": "happy_path",
+    "language": "ar",
+    "query": "أعطني ملخص حساب شركة APPLE MART",
+    "history": [],
+    "expectedTool": "get_customer_summary",
+    "targetTool": "get_customer_summary",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "outstanding_balance"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "\"Give me the account summary of APPLE MART company.\"",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "CU-VAR-01",
+    "category": "wording_variation",
+    "language": "en",
+    "query": "Give me a full account overview for GOLDEN STAR TRADING",
+    "history": [],
+    "expectedTool": "get_customer_summary",
+    "targetTool": "get_customer_summary",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "GOLDEN STAR TRADING"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "outstanding_balance"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "CU-PARAM-01",
+    "category": "missing_param",
+    "language": "en",
+    "query": "Can I get a customer summary?",
+    "history": [],
+    "expectedTool": "assistant",
+    "targetTool": "get_customer_summary",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [],
+    "prohibitedClaims": [
+      "any real customer's financial data"
+    ],
+    "expectedErrorBehavior": "No customer named. The guardrail forbids inventing ERP facts, so the model should either ask a clarifying question (tool='assistant', no tool call) rather than guess a customer, or call the tool with a placeholder that then errors. Genuinely unresolved without a live measurement — this case exists to observe which of those two the current system prompt/model actually produces.",
+    "dataMode": "mock",
+    "notes": "Missing-parameter probe with zero entity signal in the query.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "PH-EN-01",
+    "category": "happy_path",
+    "language": "en",
+    "query": "Show payment history for APPLE MART",
+    "history": [],
+    "expectedTool": "get_payment_history",
+    "targetTool": "get_payment_history",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "total_payments",
+      "total_paid"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "PH-AR-01",
+    "category": "happy_path",
+    "language": "ar",
+    "query": "أظهر لي سجل مدفوعات شركة APPLE MART",
+    "history": [],
+    "expectedTool": "get_payment_history",
+    "targetTool": "get_payment_history",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "total_paid"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "\"Show me the payment record of APPLE MART company.\"",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "PH-VAR-01",
+    "category": "wording_variation",
+    "language": "en",
+    "query": "What payments has BLUE OCEAN LLC made?",
+    "history": [],
+    "expectedTool": "get_payment_history",
+    "targetTool": "get_payment_history",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "BLUE OCEAN LLC"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "total_paid"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "PH-PARAM-01",
+    "category": "unknown_customer",
+    "language": "en",
+    "query": "Show payment history for GALAXY TRADERS",
+    "history": [],
+    "expectedTool": "get_payment_history",
+    "targetTool": "get_payment_history",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "key_exists"
+      }
+    },
+    "requiredFacts": [],
+    "prohibitedClaims": [
+      "any specific payment amount or date for GALAXY TRADERS"
+    ],
+    "expectedErrorBehavior": "GALAXY TRADERS is not a known customer; expect a 'not found' style response, not fabricated payments.",
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "TD-EN-01",
+    "category": "happy_path",
+    "language": "en",
+    "query": "Who owes us the most money?",
+    "history": [],
+    "expectedTool": "get_top_debtors",
+    "targetTool": "get_top_debtors",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "ranked customer list",
+      "outstanding_balance per customer"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "TD-AR-01",
+    "category": "happy_path",
+    "language": "ar",
+    "query": "من هم أكبر المدينين لنا؟",
+    "history": [],
+    "expectedTool": "get_top_debtors",
+    "targetTool": "get_top_debtors",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "ranked customer list"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "\"Who are our biggest debtors?\"",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "TD-VAR-01",
+    "category": "wording_variation",
+    "language": "en",
+    "query": "Show me the top debtors",
+    "history": [],
+    "expectedTool": "get_top_debtors",
+    "targetTool": "get_top_debtors",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "ranked customer list"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "TD-PARAM-01",
+    "category": "parameter_extraction",
+    "language": "en",
+    "query": "Show me the top 3 customers with the highest outstanding balance",
+    "history": [],
+    "expectedTool": "get_top_debtors",
+    "targetTool": "get_top_debtors",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "limit": {
+        "type": "numeric"
+      }
+    },
+    "requiredFacts": [
+      "ranked customer list limited to 3"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "Tests whether the OpenAI path extracts limit=3 into the returned parameters dict. The rule-based fallback CANNOT do this even when it matches the 'top_debtors' intent — verified against src/agent/router.py: the 'top_debtors' branch always returns parameters={} regardless of what was asked, even though it internally calls get_top_debtors(period=query) with the raw query text. This is an existing, unfixed quirk of the rule-based path's return contract, not a bug in this case's expectation.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "ST-EN-01",
+    "category": "happy_path",
+    "language": "en",
+    "query": "Show customer statement for APPLE MART",
+    "history": [],
+    "expectedTool": "get_customer_statement",
+    "targetTool": "get_customer_statement",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "total_invoiced",
+      "total_paid",
+      "outstanding_balance"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "ST-AR-01",
+    "category": "happy_path",
+    "language": "ar",
+    "query": "أعطني كشف حساب شركة APPLE MART",
+    "history": [],
+    "expectedTool": "get_customer_statement",
+    "targetTool": "get_customer_statement",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "outstanding_balance"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "\"Give me the account statement of APPLE MART.\"",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "ST-VAR-01",
+    "category": "wording_variation",
+    "language": "en",
+    "query": "Give me the ledger for TECH SOLUTIONS CO",
+    "history": [],
+    "expectedTool": "get_customer_statement",
+    "targetTool": "get_customer_statement",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "TECH SOLUTIONS CO"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "outstanding_balance"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "ST-PARAM-01",
+    "category": "parameter_extraction",
+    "language": "en",
+    "query": "Show APPLE MART's statement for this quarter",
+    "history": [],
+    "expectedTool": "get_customer_statement",
+    "targetTool": "get_customer_statement",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      },
+      "period": {
+        "type": "key_exists"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "period-scoped ledger"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "Tests period-parameter extraction on a tool whose rule-based path DOES pass period through to the function call (though not into the returned parameters dict).",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "UI-EN-01",
+    "category": "happy_path",
+    "language": "en",
+    "query": "Show unpaid invoices for APPLE MART",
+    "history": [],
+    "expectedTool": "get_unpaid_invoices",
+    "targetTool": "get_unpaid_invoices",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "invoice_count",
+      "total_amount"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "UI-AR-01",
+    "category": "happy_path",
+    "language": "ar",
+    "query": "أظهر الفواتير غير المدفوعة لشركة APPLE MART",
+    "history": [],
+    "expectedTool": "get_unpaid_invoices",
+    "targetTool": "get_unpaid_invoices",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "\"Show unpaid invoices for APPLE MART company.\"",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "UI-VAR-01",
+    "category": "wording_variation",
+    "language": "en",
+    "query": "What outstanding invoices does FAST DELIVERY INC have?",
+    "history": [],
+    "expectedTool": "get_unpaid_invoices",
+    "targetTool": "get_unpaid_invoices",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "FAST DELIVERY INC"
+      }
+    },
+    "requiredFacts": [
+      "customer_name"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "UI-PARAM-01",
+    "category": "unknown_customer",
+    "language": "en",
+    "query": "Show unpaid invoices for GALAXY TRADERS",
+    "history": [],
+    "expectedTool": "get_unpaid_invoices",
+    "targetTool": "get_unpaid_invoices",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "key_exists"
+      }
+    },
+    "requiredFacts": [],
+    "prohibitedClaims": [
+      "that the returned invoices all belong to GALAXY TRADERS",
+      "any invoice total attributed to GALAXY TRADERS specifically"
+    ],
+    "expectedErrorBehavior": "GALAXY TRADERS is unknown. get_unpaid_invoices() treats a missing/None customer_name as 'no filter, return all customers' (src/tools/invoice_tools.py) — it does NOT error on an unrecognized name the way get_customer_balance does. Verified directly: the rule-based path's _extract_customer() finds no match, customer stays None, and get_unpaid_invoices(customer_name=None, ...) silently returns every customer's unpaid invoices. A real risk if the OpenAI path behaves the same way (passes through the literal unmatched string, or omits customer_name) — measuring which happens is the point of this case.",
+    "dataMode": "mock",
+    "notes": "High-value entity-handling probe: a wrong answer here is not a loud error, it is a silently too-broad result.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "OV-EN-01",
+    "category": "happy_path",
+    "language": "en",
+    "query": "Which customers have overdue invoices?",
+    "history": [],
+    "expectedTool": "get_overdue_invoices",
+    "targetTool": "get_overdue_invoices",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "overdue invoice count",
+      "total_amount",
+      "customers_affected"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "FAIL"
+  },
+  {
+    "id": "OV-AR-01",
+    "category": "happy_path",
+    "language": "ar",
+    "query": "ما هي الفواتير المتأخرة؟",
+    "history": [],
+    "expectedTool": "get_overdue_invoices",
+    "targetTool": "get_overdue_invoices",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "overdue invoice count"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "\"What are the overdue invoices?\"",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "OV-VAR-01",
+    "category": "terminology_variation",
+    "language": "en",
+    "query": "Show me late payments",
+    "history": [],
+    "expectedTool": "get_overdue_invoices",
+    "targetTool": "get_overdue_invoices",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "overdue invoice count"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "'late payments' phrasing, not 'overdue'.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "OV-PARAM-01",
+    "category": "singular_plural",
+    "language": "en",
+    "query": "Show overdue invoice",
+    "history": [],
+    "expectedTool": "get_overdue_invoices",
+    "targetTool": "get_overdue_invoices",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "overdue invoice count"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "Singular 'invoice' (not 'invoices'). Verified via direct _detect_intent() call: the keyword match is a substring check on 'overdue', so singular/plural wording makes no difference on the rule-based path — both forms match. Expected PASS.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "TP-EN-01",
+    "category": "date_sensitive",
+    "language": "en",
+    "query": "What are the top selling products this month?",
+    "history": [],
+    "expectedTool": "get_top_selling_products",
+    "targetTool": "get_top_selling_products",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "_period": {
+        "type": "period_resolved"
+      }
+    },
+    "requiredFacts": [
+      "ranked product list",
+      "revenue per product"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "'This month' is relative and date-sensitive. The tool schema documents 'period' (a free-text string) as taking priority over separate month/year integers — a live run showed the model resolves this by passing period='this month' rather than computing integers itself, which is a valid, schema-conformant choice (verified: TOOL_SCHEMAS' get_top_selling_products.period description says 'Takes priority over month/year'). The assertion therefore accepts either mechanism (see evaluation_runner.py::_assert_period_resolved) and deliberately does not check the specific value, since the only correct value depends on today's real date. The rule-based fallback instead uses hardcoded _THIS_MONTH=6, _THIS_YEAR=2026 (src/agent/router.py lines 51-52) — see GLOBAL-DATE-BUG-01 and tests/evals/test_registry_coverage.py for the deterministic proof this is stale as of the dataset's authoring date (2026-07-14). Not fixed in AG1 per explicit instruction.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "TP-AR-01",
+    "category": "date_sensitive",
+    "language": "ar",
+    "query": "ما هي المنتجات الأكثر مبيعاً هذا الشهر؟",
+    "history": [],
+    "expectedTool": "get_top_selling_products",
+    "targetTool": "get_top_selling_products",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "ranked product list"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "\"What are the best-selling products this month?\"",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "TP-VAR-01",
+    "category": "wording_variation",
+    "language": "en",
+    "query": "Show me the best sellers",
+    "history": [],
+    "expectedTool": "get_top_selling_products",
+    "targetTool": "get_top_selling_products",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "ranked product list"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "TP-PARAM-01",
+    "category": "parameter_extraction",
+    "language": "en",
+    "query": "Top selling products for March 2026",
+    "history": [],
+    "expectedTool": "get_top_selling_products",
+    "targetTool": "get_top_selling_products",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "_period": {
+        "type": "period_scoped_to",
+        "month": 3,
+        "year": 2026
+      }
+    },
+    "requiredFacts": [
+      "ranked product list scoped to March 2026"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "Explicit month name + 4-digit year — a value safe to hardcode since it does not depend on today's date. Verified _extract_period's _MONTH_MAP and year regex both match this phrasing on the rule-based fallback. A live run showed the OpenAI path resolves this to an explicit period='2026-03-01 to 2026-03-31' string rather than month/year integers — also schema-conformant (period takes priority) and arguably more precise; the assertion accepts either form as long as it actually names March 2026 (see evaluation_runner.py::_assert_period_scoped_to).",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "SS-EN-01",
+    "category": "happy_path",
+    "language": "en",
+    "query": "Summarize sales for June 2026",
+    "history": [],
+    "expectedTool": "get_sales_summary",
+    "targetTool": "get_sales_summary",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "_period": {
+        "type": "period_scoped_to",
+        "month": 6,
+        "year": 2026
+      }
+    },
+    "requiredFacts": [
+      "total_revenue",
+      "transaction_count",
+      "average_transaction_value"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "Explicit month + year, safe to hardcode. A live run showed the OpenAI path resolves this via an explicit period='between 2026-06-01 and 2026-06-30' string rather than separate month/year integers — schema-conformant (period takes priority per TOOL_SCHEMAS); the assertion accepts either form.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "SS-AR-01",
+    "category": "happy_path",
+    "language": "ar",
+    "query": "لخص لنا المبيعات لشهر يونيو 2026",
+    "history": [],
+    "expectedTool": "get_sales_summary",
+    "targetTool": "get_sales_summary",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "_period": {
+        "type": "period_scoped_to",
+        "month": 6,
+        "year": 2026
+      }
+    },
+    "requiredFacts": [
+      "total_revenue"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "\"Summarize sales for us for the month of June 2026.\" Same period-vs-month/year flexibility as SS-EN-01.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "SS-VAR-01",
+    "category": "wording_variation",
+    "language": "en",
+    "query": "What's our sales performance?",
+    "history": [],
+    "expectedTool": "get_sales_summary",
+    "targetTool": "get_sales_summary",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "total_revenue"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "SS-PARAM-01",
+    "category": "date_sensitive",
+    "language": "en",
+    "query": "Sales summary for last quarter",
+    "history": [],
+    "expectedTool": "get_sales_summary",
+    "targetTool": "get_sales_summary",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "period": {
+        "type": "key_exists"
+      }
+    },
+    "requiredFacts": [
+      "total_revenue scoped to last quarter"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": "'last quarter' is not handled by the rule-based _extract_period() (it only special-cases 'this month'/'last month', explicit month names, and a bare 4-digit year regex) — verified directly: _extract_period('Sales summary for last quarter') returns (None, None). _rule_based_route() then silently defaults month/year to the stale _THIS_MONTH=6/_THIS_YEAR=2026 constants instead of computing an actual last-quarter range, so a rule-based answer would be silently wrong (reports June 2026, not last quarter). The OpenAI path passes 'period' as a free-text string the tool itself parses (src/utils/date_filters.py), which may or may not resolve 'last quarter' correctly — that resolution logic is unchanged/untested here and is this case's actual measurement target.",
+    "dataMode": "mock",
+    "notes": "Compound finding: exercises both the date-parsing gap and the stale-constant fallback.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "DA-EN-01",
+    "category": "happy_path",
+    "language": "en",
+    "query": "Show me the executive dashboard",
+    "history": [],
+    "expectedTool": "get_dashboard_summary",
+    "targetTool": "get_dashboard_summary",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "total_revenue",
+      "total_outstanding",
+      "top_debtor",
+      "top_product"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "DA-AR-01",
+    "category": "happy_path",
+    "language": "ar",
+    "query": "أرني لوحة المعلومات التنفيذية",
+    "history": [],
+    "expectedTool": "get_dashboard_summary",
+    "targetTool": "get_dashboard_summary",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "total_revenue"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "\"Show me the executive dashboard.\"",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "DA-VAR-01",
+    "category": "wording_variation",
+    "language": "en",
+    "query": "What are our key business metrics?",
+    "history": [],
+    "expectedTool": "get_dashboard_summary",
+    "targetTool": "get_dashboard_summary",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "total_revenue"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "DA-PARAM-01",
+    "category": "parameter_extraction",
+    "language": "en",
+    "query": "Can you give me the KPIs, and also say hi?",
+    "history": [],
+    "expectedTool": "get_dashboard_summary",
+    "targetTool": "get_dashboard_summary",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "total_revenue"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "Takes no parameters at all (empty schema) plus irrelevant chatter appended — tests that the extra text doesn't distract routing or leak into a fabricated argument.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "CO-EN-01",
+    "category": "happy_path",
+    "language": "en",
+    "query": "Who should we follow up with for payment?",
+    "history": [],
+    "expectedTool": "get_collection_priorities",
+    "targetTool": "get_collection_priorities",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "ranked follow-up list",
+      "priority level per customer"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "CO-AR-01",
+    "category": "happy_path",
+    "language": "ar",
+    "query": "من يجب أن نتابع معه بخصوص الدفع؟",
+    "history": [],
+    "expectedTool": "get_collection_priorities",
+    "targetTool": "get_collection_priorities",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "ranked follow-up list"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "\"Who should we follow up with regarding payment?\"",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "CO-VAR-01",
+    "category": "wording_variation",
+    "language": "en",
+    "query": "Show me collection priorities",
+    "history": [],
+    "expectedTool": "get_collection_priorities",
+    "targetTool": "get_collection_priorities",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "ranked follow-up list"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "CO-PARAM-01",
+    "category": "parameter_extraction",
+    "language": "en",
+    "query": "Show top 5 collection priorities",
+    "history": [],
+    "expectedTool": "get_collection_priorities",
+    "targetTool": "get_collection_priorities",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "limit": {
+        "type": "exact",
+        "value": 5
+      }
+    },
+    "requiredFacts": [
+      "ranked follow-up list limited to 5"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "CN-EN-01",
+    "category": "happy_path",
+    "language": "en",
+    "query": "Give me customer insights for APPLE MART",
+    "history": [],
+    "expectedTool": "get_customer_insights",
+    "targetTool": "get_customer_insights",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "lifetime_revenue",
+      "risk_level",
+      "recommended_action"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "CN-AR-01",
+    "category": "happy_path",
+    "language": "ar",
+    "query": "حلل لي حساب شركة APPLE MART",
+    "history": [],
+    "expectedTool": "get_customer_insights",
+    "targetTool": "get_customer_insights",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "risk_level"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "\"Analyze the account of APPLE MART company for me.\"",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "CN-VAR-01",
+    "category": "wording_variation",
+    "language": "en",
+    "query": "Analyze customer BLUE OCEAN LLC",
+    "history": [],
+    "expectedTool": "get_customer_insights",
+    "targetTool": "get_customer_insights",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "BLUE OCEAN LLC"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "risk_level"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "CN-PARAM-01",
+    "category": "wording_variation",
+    "language": "en",
+    "query": "What's APPLE MART's risk level?",
+    "history": [],
+    "expectedTool": "get_customer_insights",
+    "targetTool": "get_customer_insights",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "risk_level"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "'customer risk' is one of the rule-based intent keywords for customer_insights — verified in src/agent/router.py::_detect_intent.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "PR-EN-01",
+    "category": "happy_path",
+    "language": "en",
+    "query": "Give me product insights for Extra Virgin Olive Oil",
+    "history": [],
+    "expectedTool": "get_product_insights",
+    "targetTool": "get_product_insights",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "product_name": {
+        "type": "case_insensitive_equals",
+        "value": "Extra Virgin Olive Oil"
+      }
+    },
+    "requiredFacts": [
+      "product query",
+      "revenue",
+      "units_sold",
+      "revenue_share_pct"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "Product name verified against the real mock catalog (src/data/mock_data.py PRODUCTS) — note this differs from an earlier, incorrect assumption of SKU-coded names like '[OIL-16L-T] OLIVE OIL (16L TIN)'; the actual mock names are plain, e.g. 'Extra Virgin Olive Oil'.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "PR-AR-01",
+    "category": "happy_path",
+    "language": "ar",
+    "query": "كيف أداء منتج Extra Virgin Olive Oil؟",
+    "history": [],
+    "expectedTool": "get_product_insights",
+    "targetTool": "get_product_insights",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "product_name": {
+        "type": "key_exists"
+      }
+    },
+    "requiredFacts": [
+      "revenue"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "\"How is the Extra Virgin Olive Oil product performing?\"",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "PR-VAR-01",
+    "category": "wording_variation",
+    "language": "en",
+    "query": "How is Fresh Apples selling?",
+    "history": [],
+    "expectedTool": "get_product_insights",
+    "targetTool": "get_product_insights",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "product_name": {
+        "type": "case_insensitive_equals",
+        "value": "Fresh Apples"
+      }
+    },
+    "requiredFacts": [
+      "revenue",
+      "units_sold"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "PR-PARAM-01",
+    "category": "unknown_product",
+    "language": "en",
+    "query": "Product insights for Purple Widget 9000",
+    "history": [],
+    "expectedTool": "get_product_insights",
+    "targetTool": "get_product_insights",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "product_name": {
+        "type": "key_exists"
+      }
+    },
+    "requiredFacts": [],
+    "prohibitedClaims": [
+      "any revenue or unit figure for Purple Widget 9000"
+    ],
+    "expectedErrorBehavior": "Not in the mock catalog. get_product_insights() returns {\"mode\": \"no_match\", \"error\": \"No product found matching '...'\"} (src/tools/product_insights_tools.py), formatted as a '**Error:**' string. Verified by direct code read of the exact/aggregate/no_match matching rule.",
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "BU-EN-01",
+    "category": "happy_path",
+    "language": "en",
+    "query": "Show business alerts",
+    "history": [],
+    "expectedTool": "get_business_alerts",
+    "targetTool": "get_business_alerts",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "alert list",
+      "alert type per entry"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "BU-AR-01",
+    "category": "happy_path",
+    "language": "ar",
+    "query": "أظهر لي تنبيهات الأعمال",
+    "history": [],
+    "expectedTool": "get_business_alerts",
+    "targetTool": "get_business_alerts",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "alert list"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "\"Show me business alerts.\"",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "BU-VAR-01",
+    "category": "wording_variation",
+    "language": "en",
+    "query": "What should I worry about in the business?",
+    "history": [],
+    "expectedTool": "get_business_alerts",
+    "targetTool": "get_business_alerts",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "alert list"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "BU-PARAM-01",
+    "category": "parameter_extraction",
+    "language": "en",
+    "query": "Show me the top 3 business alerts",
+    "history": [],
+    "expectedTool": "get_business_alerts",
+    "targetTool": "get_business_alerts",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "limit": {
+        "type": "exact",
+        "value": 3
+      }
+    },
+    "requiredFacts": [
+      "alert list limited to 3"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "GLOBAL-AMBIG-01",
+    "category": "ambiguous_entity",
+    "language": "en",
+    "query": "How is APPLE MART doing?",
+    "history": [],
+    "expectedTool": "get_customer_insights",
+    "targetTool": "get_customer_insights",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "risk_level or performance summary"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": "APPLE MART is a customer, so a reasonable answer calls get_customer_insights. But the rule-based fallback's _detect_intent() checks the product_insights keyword list ('how is', 'is selling') BEFORE the customer_insights list, and 'how is' is a substring of this exact query — verified directly: _detect_intent('How is APPLE MART doing?') returns 'product_insights', not 'customer_insights'. The rule-based path then calls get_product_insights('APPLE MART') via best-effort text extraction, which returns a no_match error, because APPLE MART is a customer, not a product. This is a genuine routing defect in the fallback keyword table (owner: AG3, routing behavior) — confirmed by code reading and direct function calls, NOT fixed in this phase. The OpenAI path's actual behavior on this exact ambiguous phrasing is what this case measures for real.",
+    "dataMode": "mock",
+    "notes": "Deterministic rule-based mis-route already proven; see docs/AI_AGENT_EVALUATION_BASELINE.md §8 for the exact command run.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "GLOBAL-AMBIG-02",
+    "category": "ambiguous_entity",
+    "language": "en",
+    "query": "Tell me about Fresh Apples",
+    "history": [],
+    "expectedTool": "get_product_insights",
+    "targetTool": "get_product_insights",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "product_name": {
+        "type": "case_insensitive_equals",
+        "value": "Fresh Apples"
+      }
+    },
+    "requiredFacts": [
+      "revenue or product performance summary"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": "Fresh Apples is a product, so a reasonable answer calls get_product_insights. The rule-based fallback's customer_insights keyword list includes 'tell me about' and is checked BEFORE any product-specific 'tell me about' handling exists — verified directly: _detect_intent('Tell me about Fresh Apples') returns 'customer_insights'. Because 'Fresh Apples' is not in the known customer list, _extract_customer() finds nothing and _rule_based_route() returns NO_CUSTOMER_MSG without ever attempting a product lookup. Same class of defect as GLOBAL-AMBIG-01, mirrored in the opposite direction (owner: AG3). Not fixed in this phase.",
+    "dataMode": "mock",
+    "notes": "Deterministic rule-based mis-route already proven; see docs/AI_AGENT_EVALUATION_BASELINE.md §8.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "GLOBAL-UNKNOWN-01",
+    "category": "unknown_customer",
+    "language": "en",
+    "query": "Customer statement for GALAXY TRADERS",
+    "history": [],
+    "expectedTool": "get_customer_statement",
+    "targetTool": "get_customer_statement",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "key_exists"
+      }
+    },
+    "requiredFacts": [],
+    "prohibitedClaims": [
+      "any invoice or payment row attributed to GALAXY TRADERS"
+    ],
+    "expectedErrorBehavior": "Unknown customer; get_customer_statement() returns {\"error\": \"Customer 'GALAXY TRADERS' not found.\"} per src/tools/customer_tools.py.",
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "GLOBAL-MISSING-01",
+    "category": "missing_param",
+    "language": "en",
+    "query": "Show me a customer summary",
+    "history": [],
+    "expectedTool": "assistant",
+    "targetTool": "get_customer_summary",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [],
+    "prohibitedClaims": [
+      "any specific customer's data"
+    ],
+    "expectedErrorBehavior": "No customer named anywhere in the query or (empty) history. Measures whether the model asks for clarification instead of guessing or fabricating a customer.",
+    "dataMode": "mock",
+    "notes": "",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "GLOBAL-FOLLOWUP-01",
+    "category": "followup_with_history",
+    "language": "en",
+    "query": "Show unpaid invoices too",
+    "history": [
+      {
+        "role": "user",
+        "content": "How much does APPLE MART owe us?"
+      },
+      {
+        "role": "assistant",
+        "content": "(Provided get_customer_balance results.)"
+      }
+    ],
+    "expectedTool": "get_unpaid_invoices",
+    "targetTool": "get_unpaid_invoices",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name resolved from the prior turn, not restated by the new query"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "History is already in the lightweight {role, content} shape with the tool-output collapsed to a short note — exactly what apps/web/lib/history.ts::buildLightweightHistory and apps/api/main.py::filter_history both produce. The rule-based fallback CANNOT use history at all (_rule_based_route(query) takes no history argument) — verified by its signature — so this case only has a chance of passing on the OpenAI path, which does receive history via _build_messages().",
+    "currentStatus": "FAIL"
+  },
+  {
+    "id": "GLOBAL-FOLLOWUP-02",
+    "category": "followup_with_history",
+    "language": "en",
+    "query": "What about their payment history?",
+    "history": [
+      {
+        "role": "user",
+        "content": "Give me a customer summary for BLUE OCEAN LLC"
+      },
+      {
+        "role": "assistant",
+        "content": "(Provided get_customer_summary results.)"
+      }
+    ],
+    "expectedTool": "get_payment_history",
+    "targetTool": "get_payment_history",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "BLUE OCEAN LLC"
+      }
+    },
+    "requiredFacts": [
+      "customer_name resolved from the prior turn via pronoun ('their')"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "Pronoun-based reference resolution across turns; a harder case than GLOBAL-FOLLOWUP-01's explicit noun-free continuation.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "GLOBAL-DATE-BUG-01",
+    "category": "date_sensitive",
+    "language": "en",
+    "query": "Top selling products last month",
+    "history": [],
+    "expectedTool": "get_top_selling_products",
+    "targetTool": "get_top_selling_products",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "_period": {
+        "type": "period_resolved"
+      }
+    },
+    "requiredFacts": [],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": "KNOWN ISSUE — documented, not fixed in AG1. src/agent/router.py hardcodes _THIS_MONTH=6, _THIS_YEAR=2026 (lines 51-52). _extract_period() special-cases 'last month' as (_THIS_MONTH-1, _THIS_YEAR) = (5, 2026) unconditionally — verified by direct call: _extract_period('Top selling products last month') returns (5, 2026) regardless of the real current date. This is correct only for as long as the real 'last month' happens to be May 2026; the rule-based fallback path silently drifts out of date every month thereafter. The OpenAI path is unaffected (src/services/openai_service.py computes CURRENT_DATE dynamically via date.today()).",
+    "dataMode": "mock",
+    "notes": "Owner of the eventual fix: AG3 (routing behavior). This case's currentStatus reflects the live OpenAI-path measurement only (the active path whenever OPENAI_API_KEY is set) — the rule-based fallback defect this case documents is proven separately and deterministically in tests/evals/test_registry_coverage.py against src.agent.router._rule_based_route() directly, independent of this dataset's currentStatus field.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "GLOBAL-TERM-01",
+    "category": "terminology_variation",
+    "language": "en",
+    "query": "Show me past due invoices",
+    "history": [],
+    "expectedTool": "get_overdue_invoices",
+    "targetTool": "get_overdue_invoices",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "overdue invoice count"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "'past due' phrasing; 'past due' is one of the rule-based keywords for overdue_invoices (src/agent/router.py::_detect_intent).",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "GLOBAL-TERM-02",
+    "category": "terminology_variation",
+    "language": "en",
+    "query": "Any missed payments recently?",
+    "history": [],
+    "expectedTool": "get_overdue_invoices",
+    "targetTool": "get_overdue_invoices",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "overdue invoice count"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "'missed payment' phrasing; also a matched rule-based keyword for overdue_invoices.",
+    "currentStatus": "FAIL"
+  },
+  {
+    "id": "GLOBAL-PLURAL-01",
+    "category": "singular_plural",
+    "language": "en",
+    "query": "Show unpaid invoice for APPLE MART",
+    "history": [],
+    "expectedTool": "get_unpaid_invoices",
+    "targetTool": "get_unpaid_invoices",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "Singular 'invoice' for a tool whose rule-based keyword list is ['unpaid invoice', 'outstanding invoice', 'open invoice', 'unpaid', ...] — the bare substring 'unpaid' alone already guarantees a match regardless of singular/plural.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "GLOBAL-PAGINATE-01",
+    "category": "pagination_intent",
+    "language": "en",
+    "query": "Show me every single unpaid invoice across all customers, all pages",
+    "history": [],
+    "expectedTool": "get_unpaid_invoices",
+    "targetTool": "get_unpaid_invoices",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "key_absent"
+      }
+    },
+    "requiredFacts": [
+      "full unpaid invoice list, all customers"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "None of the 14 tools implement pagination (verified: no tool signature or provider function takes an offset/page/cursor argument; src/data/provider.py's own internal Odoo pagination via _search_read_all()/_PAGE_SIZE=500 is an internal implementation detail, not exposed through any tool parameter). A 'give me everything' request should simply resolve to the same unfiltered call as omitting the customer filter — there is no larger result to ask for.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "GLOBAL-UNSUPPORTED-01",
+    "category": "unsupported_request",
+    "language": "en",
+    "query": "Delete the invoice for APPLE MART",
+    "history": [],
+    "expectedTool": "assistant",
+    "targetTool": null,
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [],
+    "prohibitedClaims": [
+      "that any invoice was deleted or modified"
+    ],
+    "expectedErrorBehavior": "No tool performs writes. The OpenAI path is expected to decline (tool='assistant', no tool call) rather than call any of the 14 read-only tools.",
+    "dataMode": "mock",
+    "notes": "Read-only guarantee probe at the routing layer, not just the Odoo gateway layer.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "GLOBAL-UNSUPPORTED-02",
+    "category": "unsupported_request",
+    "language": "en",
+    "query": "Create a new invoice for APPLE MART for $5000",
+    "history": [],
+    "expectedTool": "assistant",
+    "targetTool": null,
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [],
+    "prohibitedClaims": [
+      "that any invoice was created"
+    ],
+    "expectedErrorBehavior": "No tool performs writes. The OpenAI path is expected to decline (tool='assistant', no tool call) rather than call any of the 14 read-only tools.",
+    "dataMode": "mock",
+    "notes": "Read-only guarantee probe, write-intent variant.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "GLOBAL-ODOO-UNAVAIL-01",
+    "category": "odoo_unavailable",
+    "language": "en",
+    "query": "How much does APPLE MART owe us?",
+    "history": [],
+    "expectedTool": "get_customer_balance",
+    "targetTool": "get_customer_balance",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": "Not executed in AG1. Exercising a genuinely unreachable/misconfigured live Odoo backend requires DATA_BACKEND=odoo plus a real (or deliberately broken) Odoo connection — out of scope per the explicit instruction that live-Odoo validation belongs to AG4, and this repo's active backend is DATA_BACKEND=mock (verified via src.data.provider._backend()).",
+    "dataMode": "live_odoo",
+    "notes": "Placeholder documenting the gap for AG4, not a routing measurement. Do not populate with a fabricated result.",
+    "currentStatus": "BLOCKED"
+  },
+  {
+    "id": "GLOBAL-OPENAI-UNAVAIL-01",
+    "category": "openai_unavailable",
+    "language": "en",
+    "query": "How much does APPLE MART owe us?",
+    "history": [],
+    "expectedTool": "get_customer_balance",
+    "targetTool": "get_customer_balance",
+    "expectedParameters": {},
+    "parameterAssertions": {
+      "customer_name": {
+        "type": "case_insensitive_equals",
+        "value": "APPLE MART"
+      }
+    },
+    "requiredFacts": [
+      "customer_name",
+      "outstanding_balance"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "Represents the 'OpenAI unavailable' scenario by calling src.agent.router._rule_based_route() directly (the exact function route_query() falls back to on any OpenAI failure) rather than by simulating a missing key end-to-end — fully deterministic, no network. Verified this specific query resolves correctly on the rule-based path.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "GLOBAL-OPENAI-UNAVAIL-02",
+    "category": "openai_unavailable",
+    "language": "en",
+    "query": "Which customers have overdue invoices?",
+    "history": [],
+    "expectedTool": "get_overdue_invoices",
+    "targetTool": "get_overdue_invoices",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "overdue invoice count"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "Rule-based-fallback proof for a no-customer-required tool. Verified via direct _rule_based_route() call.",
+    "currentStatus": "FAIL"
+  },
+  {
+    "id": "GLOBAL-OPENAI-UNAVAIL-03",
+    "category": "openai_unavailable",
+    "language": "en",
+    "query": "Show me the executive dashboard",
+    "history": [],
+    "expectedTool": "get_dashboard_summary",
+    "targetTool": "get_dashboard_summary",
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [
+      "total_revenue"
+    ],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": null,
+    "dataMode": "mock",
+    "notes": "Rule-based-fallback proof for a zero-parameter tool. Verified via direct _rule_based_route() call.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "GLOBAL-API-AUTH-01",
+    "category": "unauthorized_api",
+    "language": "n/a",
+    "query": "(HTTP-level probe: POST /chat and GET /tools with no/invalid bearer token)",
+    "history": [],
+    "expectedTool": "n/a",
+    "targetTool": null,
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": "401 Unauthorized on both endpoints; /health is deliberately exempt (unauthenticated liveness probe).",
+    "dataMode": "api_contract",
+    "notes": "Not a routing-layer case — this is an HTTP-contract concern owned by apps/api, already covered by existing, currently-passing tests: apps/api/tests/test_auth.py::test_missing_token_is_rejected, test_unauthenticated_requests_fail_on_tools_too, test_malformed_token_is_rejected, test_expired_token_is_rejected, test_health_never_requires_a_token. Recorded here as a cross-reference so the coverage matrix has an explicit entry for this required category, per the confirmed pytest run (61 passed) at the start of AG1 — not re-executed by this dataset's runner.",
+    "currentStatus": "PASS"
+  },
+  {
+    "id": "GLOBAL-API-RATE-01",
+    "category": "rate_limited_api",
+    "language": "n/a",
+    "query": "(HTTP-level probe: 31st POST /chat within a 60-second window)",
+    "history": [],
+    "expectedTool": "n/a",
+    "targetTool": null,
+    "expectedParameters": {},
+    "parameterAssertions": {},
+    "requiredFacts": [],
+    "prohibitedClaims": [],
+    "expectedErrorBehavior": "429-style rejection once _CHAT_RATE_LIMIT_MAX=30 requests/60s is exceeded; resets once the window expires.",
+    "dataMode": "api_contract",
+    "notes": "Cross-referenced to existing, currently-passing tests: apps/api/tests/test_api.py::test_chat_endpoint_allows_requests_under_the_limit, test_chat_endpoint_blocks_requests_once_the_limit_is_reached, test_chat_endpoint_rate_limit_window_expires. Same treatment as GLOBAL-API-AUTH-01: an HTTP-contract concern, not re-executed by the routing-eval runner.",
+    "currentStatus": "PASS"
+  }
+]

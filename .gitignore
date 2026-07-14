@@ -16,3 +16,9 @@ Thumbs.db
 .pytest_cache/
 .vscode/
 .idea/
+
+# AG1 evaluation runner output (raw per-run JSON dumps). The reviewed,
+# sanitized baseline lives in docs/AI_AGENT_EVALUATION_BASELINE.md and in
+# tests/evals/agent_cases.json's own currentStatus fields, both committed —
+# ad-hoc re-runs of scripts/run_agent_evaluation.py should not be.
+tests/evals/results/
