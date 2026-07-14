@@ -17,22 +17,16 @@
  * a tampered imagePath value cannot escape the storage directory.
  */
 
-import { auth } from "@/auth";
 import { prisma } from "@/lib/db";
 import { readProofImage } from "@/lib/file-storage";
+import { authorizeImageViewer } from "@/lib/image-auth";
 
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return new Response("Not authenticated.", { status: 401 });
-  }
-  const role = session.user.role;
-  if (role !== "OWNER" && role !== "DRIVER") {
-    return new Response("Not authorized.", { status: 403 });
-  }
+  const viewer = await authorizeImageViewer();
+  if (viewer instanceof Response) return viewer;
 
   const { id } = await params;
   const proof = await prisma.deliveryProof.findUnique({
@@ -45,7 +39,7 @@ export async function GET(
   if (!proof || !proof.imagePath) {
     return notFound();
   }
-  if (role === "DRIVER" && proof.driverId !== session.user.id) {
+  if (viewer.role === "DRIVER" && proof.driverId !== viewer.userId) {
     return notFound();
   }
 

@@ -225,6 +225,18 @@ root, never in `public/`) and are served only through a role-checked route handl
 
 Draft only — **do not implement in this documentation phase.**
 
+> **D7 addendum (shipped):** `DeliveryProof` gained six OCR-readiness fields at D5
+> (see the OCR-readiness note in §9's roadmap status) and a new sibling model,
+> `DeliveryProofAttempt`, at D7 — one immutable row per photo ever submitted for a
+> proof (id, deliveryProofId FK, attemptNumber, imagePath/mimeType/sizeBytes,
+> submittedAt/submittedById, status/rejectionReason/reviewedAt/reviewedById,
+> createdAt/updatedAt; unique on `(deliveryProofId, attemptNumber)`; indexed on
+> `(submittedById, submittedAt)` and `(status, submittedAt)`). Full design rationale
+> is in §9's D7 write-up, not repeated here — this draft below is left as the
+> original D2 planning artifact.
+
+
+
 ```
 DeliveryProof
 - id              (cuid)
@@ -404,6 +416,10 @@ heading differs from what shipped, this table is authoritative.
 - **D6.2 — Driver Summary Semantics Closure** — all four Today's Summary cards
   (uploaded/pending/verified/rejected) are day-scoped to the business-day range, not
   just "uploaded today"; see the definition below.
+- **D7 — Rejected Proof Resubmission and Immutable Attempt History** — a driver can
+  retake and resubmit a REJECTED proof's photo; every submission is preserved forever
+  as an immutable `DeliveryProofAttempt` row, never overwritten or deleted; see §5's
+  data model addendum and the detailed design notes below.
 
 **Today's Summary, defined (as of D6.2):** every card on the driver dashboard's
 Today's Summary is scoped to proofs **uploaded** during the current business day
@@ -415,9 +431,39 @@ whose current status is that value. A proof uploaded yesterday and reviewed toda
 here). The `total` field returned by `getMyDeliveryProofSummary` keeps its original
 all-time meaning and is unrelated to these four cards (not currently rendered in the UI).
 
+**D7 — Rejected Proof Resubmission, defined:** a `DeliveryProof` still holds the
+proof's *current* state (status, current image, review outcome — exactly as before
+D7); it now also has many `DeliveryProofAttempt` rows, one per photo ever submitted
+for it. Attempt 1 is created atomically with every new proof (both
+`createDeliveryProofMetadata` and `uploadDeliveryProof`, in one Prisma transaction —
+a parent proof can never exist without at least one attempt). When a `REJECTED`
+proof is resubmitted (`resubmitRejectedDeliveryProof`, DRIVER-only, ownership and
+`REJECTED` status re-checked atomically at write time via the same
+`updateMany`-with-WHERE-guard pattern D2's `reviewDeliveryProof` already used), a new
+attempt row is created with the next sequential `attemptNumber` (server-computed,
+never client-supplied), the parent's current-state fields move to point at the new
+image, `status` returns to `PENDING`, review fields clear, and every D5 OCR field
+resets to its untouched initial state (`ocrStatus: "NOT_STARTED"`, everything else
+`null`) — no OCR run is triggered. Every `verifyDeliveryProof`/`rejectDeliveryProof`
+call now updates the parent **and** the latest attempt together, in one transaction,
+with one shared timestamp; older attempts are never touched by a later review — a
+rejected attempt keeps its own rejection reason forever, even after a later attempt
+is verified. Old attempt images are never deleted; a new sibling route
+(`/api/proofs/[id]/attempts/[attemptId]/image`) serves historical images under the
+same authorization rules as the current-image route (shared via
+`lib/image-auth.ts`). The owner detail page's Attempt History section lists every
+attempt newest-first with a "Current" indicator on the latest; the driver's own
+detail page shows only current state plus a Retake & Resubmit form, visible only
+while the proof is `REJECTED`. **SQLite concurrency note (documented, not
+assumed):** this app's SQLite database serializes writes to one at a time, so two
+resubmissions racing for the same proof are already ordered by the database itself;
+the WHERE-clause guard and the `(deliveryProofId, attemptNumber)` unique constraint
+are defense-in-depth under that model, not a substitute for the row-level locking a
+multi-writer database (a future Postgres migration) would need for the same
+guarantee — verified with a real concurrent-call test, not simulated only.
+
 **Future phases (planned, NOT implemented — no code exists for these):**
 
-- **D7 — Rejected Proof Resubmission** — let drivers re-upload after a rejection
 - **D8 — Driver Notifications** — notify drivers of verify/reject outcomes
 - **OCR design/implementation phases** — the extraction engine and its planning
   (the original "D6 — OCR Planning" content below is the seed for this)

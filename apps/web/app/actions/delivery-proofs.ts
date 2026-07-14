@@ -20,6 +20,17 @@ import { prisma } from "@/lib/db";
 import { saveProofImage, deleteProofImage } from "@/lib/file-storage";
 import { businessDayRangeUtc } from "@/lib/business-time";
 
+/**
+ * D7 note on file scope: this file grew a second responsibility area
+ * (immutable attempt history) alongside D2–D6's proof/summary actions. It
+ * stays one file rather than splitting, because every attempt-related
+ * action shares the same guards, view helpers (toView/toOwnerView/
+ * isStatus), and — most importantly — the same transactional invariant
+ * with the proof-review actions (D4's reviewDeliveryProof) that a review
+ * MUST update the parent and the latest attempt together. Splitting would
+ * either duplicate that invariant across files or force an import cycle.
+ */
+
 export type DeliveryProofStatus = "PENDING" | "VERIFIED" | "REJECTED";
 export type OcrStatus = "NOT_STARTED" | "PROCESSING" | "COMPLETED" | "FAILED";
 
@@ -166,8 +177,105 @@ function toOwnerView(
   };
 }
 
+/**
+ * One immutable submission's evidence + review record, as shown to OWNER
+ * (D7). Never returned to a DRIVER — attempt history (in particular, who
+ * reviewed a past attempt and when) is an owner-only surface, same
+ * boundary as OwnerDeliveryProofView's OCR/reviewer fields.
+ */
+export interface AttemptView {
+  id: string;
+  attemptNumber: number;
+  imagePath: string | null;
+  submittedAt: string;
+  submittedByUsername: string;
+  status: DeliveryProofStatus;
+  rejectionReason: string | null;
+  reviewedAt: string | null;
+  reviewedByUsername: string | null;
+}
+
+/** getDeliveryProofForOwner's return shape: the standard owner view plus
+ * the full attempt history, newest first (see getDeliveryProofForOwner's
+ * comment for why). A distinct type from OwnerDeliveryProofView rather
+ * than adding `attempts` to that shared interface — every OTHER function
+ * returning OwnerDeliveryProofView (the queue list, verify/reject,
+ * recordOcrResult) does not fetch attempts, and giving them an `attempts:
+ * []` field would misleadingly read as "this proof has no attempts" rather
+ * than "attempts weren't queried here." */
+export interface OwnerDeliveryProofDetailView extends OwnerDeliveryProofView {
+  attempts: AttemptView[];
+}
+
+function toAttemptView(a: {
+  id: string;
+  attemptNumber: number;
+  imagePath: string | null;
+  submittedAt: Date;
+  submittedBy: { username: string };
+  status: string;
+  rejectionReason: string | null;
+  reviewedAt: Date | null;
+  reviewedBy: { username: string } | null;
+}): AttemptView {
+  return {
+    id: a.id,
+    attemptNumber: a.attemptNumber,
+    imagePath: a.imagePath,
+    submittedAt: a.submittedAt.toISOString(),
+    submittedByUsername: a.submittedBy.username,
+    status: isStatus(a.status) ? a.status : "PENDING",
+    rejectionReason: a.rejectionReason,
+    reviewedAt: a.reviewedAt ? a.reviewedAt.toISOString() : null,
+    reviewedByUsername: a.reviewedBy ? a.reviewedBy.username : null,
+  };
+}
+
+/**
+ * Creates a DeliveryProof together with its mandatory attempt 1, in one
+ * transaction (D7): a parent proof must never exist without at least one
+ * attempt describing it, matching the invariant reviewDeliveryProof relies
+ * on ("every proof has a latest attempt"). `now` is computed once and used
+ * for both DeliveryProof.uploadedAt and the attempt's submittedAt so they
+ * match exactly, not just approximately (two separate `@default(now())`
+ * evaluations could differ by microseconds).
+ */
+async function createProofWithInitialAttempt(
+  driverId: string,
+  data: { invoiceNumber: string | null; customerName: string | null; notes: string | null },
+  image: { storedName: string; mimeType: string; sizeBytes: number } | null
+) {
+  const now = new Date();
+  return prisma.$transaction(async (tx) => {
+    const proof = await tx.deliveryProof.create({
+      data: {
+        ...data,
+        imagePath: image?.storedName ?? null,
+        mimeType: image?.mimeType ?? null,
+        sizeBytes: image?.sizeBytes ?? null,
+        driverId,
+        uploadedAt: now,
+      },
+    });
+    await tx.deliveryProofAttempt.create({
+      data: {
+        deliveryProofId: proof.id,
+        attemptNumber: 1,
+        imagePath: image?.storedName ?? null,
+        mimeType: image?.mimeType ?? null,
+        sizeBytes: image?.sizeBytes ?? null,
+        submittedAt: now,
+        submittedById: driverId,
+        status: "PENDING",
+      },
+    });
+    return proof;
+  });
+}
+
 /** DRIVER: record a delivery proof (metadata only in D2 — the photo itself
- * arrives in D3). The proof always belongs to the session's driver. */
+ * arrives in D3). The proof always belongs to the session's driver.
+ * Creates attempt 1 atomically alongside it (D7). */
 export async function createDeliveryProofMetadata(
   input: CreateDeliveryProofInput
 ): Promise<DeliveryProofView> {
@@ -179,9 +287,7 @@ export async function createDeliveryProofMetadata(
     notes: normalizeOptionalText(input?.notes, "Notes", MAX_NOTES),
   };
 
-  const proof = await prisma.deliveryProof.create({
-    data: { ...data, driverId: session.user.id },
-  });
+  const proof = await createProofWithInitialAttempt(session.user.id, data, null);
   return toView(proof);
 }
 
@@ -310,29 +416,56 @@ export async function listAllDeliveryProofsForOwner(
   return views;
 }
 
-/** OWNER: one proof by id; null for unknown ids (no existence probing to
- * defend against here — owners can already list everything). */
+/**
+ * OWNER: one proof by id, including its full attempt history (D7); null
+ * for unknown ids (no existence probing to defend against here — owners
+ * can already list everything). Attempts are ordered NEWEST FIRST — the
+ * decision, documented here per the D7 spec's requirement to state it
+ * explicitly: this page reads top-to-bottom as "current state, then how
+ * it got here," matching the review queue's own newest-first convention
+ * (§9 D4) rather than a chronological "attempt 1 first" reading order.
+ */
 export async function getDeliveryProofForOwner(
   proofId: string
-): Promise<OwnerDeliveryProofView | null> {
+): Promise<OwnerDeliveryProofDetailView | null> {
   await requireActionRole("OWNER");
   if (typeof proofId !== "string" || proofId.length === 0) {
     return null;
   }
   const proof = await prisma.deliveryProof.findUnique({
     where: { id: proofId },
-    include: ownerInclude,
+    include: {
+      ...ownerInclude,
+      attempts: {
+        orderBy: { attemptNumber: "desc" },
+        include: {
+          submittedBy: { select: { username: true } },
+          reviewedBy: { select: { username: true } },
+        },
+      },
+    },
   });
-  return proof ? toOwnerView(proof) : null;
+  if (!proof) return null;
+  return { ...toOwnerView(proof), attempts: proof.attempts.map(toAttemptView) };
 }
 
 /**
  * The single review chokepoint for both decisions. A proof can be reviewed
  * exactly once, and only from PENDING — enforced atomically (updateMany
  * with the status in the WHERE clause), so two concurrent reviews can't
- * both win. Re-reviewing a decided proof is deliberately not supported in
- * D2; if D4's review UI needs it, that's a planned change, not a default.
- * verifiedAt records when the review happened — on rejection too.
+ * both win. Re-reviewing a decided proof is deliberately not supported;
+ * that remains true after D7 — reviewing again after a resubmission means
+ * reviewing the NEW (again-PENDING) latest attempt, not re-deciding an old
+ * one. verifiedAt records when the review happened — on rejection too.
+ *
+ * D7 addition: every review updates the parent DeliveryProof's
+ * current-state fields AND the LATEST DeliveryProofAttempt's review
+ * fields, in the same transaction, with the same server timestamp — never
+ * an older historical attempt. The parent updateMany's WHERE clause
+ * (status: "PENDING") is still the sole authoritative gate on whether the
+ * review is allowed to happen at all; the attempt update inside the same
+ * transaction only runs once that gate has already succeeded, so it never
+ * fires without a corresponding parent change.
  */
 async function reviewDeliveryProof(
   proofId: unknown,
@@ -342,23 +475,50 @@ async function reviewDeliveryProof(
   if (typeof proofId !== "string" || proofId.length === 0) {
     throw new Error("Delivery proof not found or already reviewed.");
   }
-  const updated = await prisma.deliveryProof.updateMany({
-    where: { id: proofId, status: "PENDING" },
-    data: {
-      status: decision.status,
-      rejectionReason: decision.rejectionReason,
-      verifiedAt: new Date(),
-      verifiedById: reviewerId,
-    },
-  });
-  if (updated.count === 0) {
-    // Unknown id and already-reviewed look identical on purpose — the
-    // caller learns the review didn't happen, nothing more.
-    throw new Error("Delivery proof not found or already reviewed.");
-  }
-  const proof = await prisma.deliveryProof.findUniqueOrThrow({
-    where: { id: proofId },
-    include: ownerInclude,
+  const now = new Date();
+
+  const proof = await prisma.$transaction(async (tx) => {
+    const updated = await tx.deliveryProof.updateMany({
+      where: { id: proofId, status: "PENDING" },
+      data: {
+        status: decision.status,
+        rejectionReason: decision.rejectionReason,
+        verifiedAt: now,
+        verifiedById: reviewerId,
+      },
+    });
+    if (updated.count === 0) {
+      // Unknown id and already-reviewed look identical on purpose — the
+      // caller learns the review didn't happen, nothing more.
+      throw new Error("Delivery proof not found or already reviewed.");
+    }
+
+    // Every proof has a latest attempt by construction (D7: initial
+    // creation and every resubmission are atomic with their attempt row).
+    // A missing one here would mean that invariant broke, not a normal
+    // "nothing to review" case — fail loudly rather than silently
+    // reviewing the parent without a matching attempt record.
+    const latest = await tx.deliveryProofAttempt.findFirst({
+      where: { deliveryProofId: proofId },
+      orderBy: { attemptNumber: "desc" },
+    });
+    if (!latest) {
+      throw new Error("Delivery proof has no attempt history.");
+    }
+    await tx.deliveryProofAttempt.update({
+      where: { id: latest.id },
+      data: {
+        status: decision.status,
+        rejectionReason: decision.rejectionReason,
+        reviewedAt: now,
+        reviewedById: reviewerId,
+      },
+    });
+
+    return tx.deliveryProof.findUniqueOrThrow({
+      where: { id: proofId },
+      include: ownerInclude,
+    });
   });
   return toOwnerView(proof);
 }
@@ -537,11 +697,13 @@ export interface UploadDeliveryProofState {
  * DRIVER (D3): the driver portal's upload — one required image plus the
  * D2 metadata fields, in a single submission so a proof-with-photo is
  * created atomically (exactly one image per proof; there is deliberately
- * no attach-image-later or replace-image action). useActionState-shaped:
- * validation failures come back as form state, never as thrown errors.
- * The image is validated (size cap, magic-byte type sniffing) and stored
- * under a server-generated name before the row is created; if the row
- * fails, the file is cleaned up rather than orphaned.
+ * no attach-image-later or replace-image action — that's what D7's
+ * resubmission action is for, and only after a rejection). Creates attempt
+ * 1 alongside the parent in the same transaction (D7). useActionState-
+ * shaped: validation failures come back as form state, never as thrown
+ * errors. The image is validated (size cap, magic-byte type sniffing) and
+ * stored under a server-generated name before the row is created; if the
+ * transaction fails, the file is cleaned up rather than orphaned.
  */
 export async function uploadDeliveryProof(
   _prevState: UploadDeliveryProofState | undefined,
@@ -567,15 +729,7 @@ export async function uploadDeliveryProof(
   }
 
   try {
-    await prisma.deliveryProof.create({
-      data: {
-        ...data,
-        imagePath: stored.storedName,
-        mimeType: stored.mimeType,
-        sizeBytes: stored.sizeBytes,
-        driverId: session.user.id,
-      },
-    });
+    await createProofWithInitialAttempt(session.user.id, data, stored);
   } catch {
     // Database errors are never surfaced verbatim — no internals in form
     // state. The stored file is cleaned up rather than orphaned.
@@ -584,5 +738,143 @@ export async function uploadDeliveryProof(
   }
 
   revalidatePath("/driver");
+  return {};
+}
+
+export interface ResubmitProofState {
+  error?: string;
+}
+
+/**
+ * DRIVER (D7): resubmit a REJECTED proof with a newly captured image.
+ * Reuses D3's exact upload validation (lib/file-storage.ts's magic-byte
+ * type check, size cap, server-generated filename) — no separate
+ * validation regime. This is deliberately NOT a general proof-edit action:
+ * it changes exactly the image and the fields that follow from a fresh
+ * submission (status, review fields, OCR fields); invoiceNumber,
+ * customerName, and notes are untouched.
+ *
+ * Required flow (in order, matching docs/DELIVERY_MANAGEMENT_PLAN.md's D7
+ * spec exactly):
+ *   1. requireActionRole("DRIVER") — session + role, before anything else.
+ *   2. Ownership + REJECTED-status check (this produces the honest,
+ *      specific error message the driver sees; see the note below on why
+ *      it is not the actual security boundary by itself).
+ *   3–4. saveProofImage validates MIME/size and writes the new file under
+ *      a server-generated name, in one call (same as D3's upload path).
+ *   5. The database transaction: an atomic updateMany with `status:
+ *      "REJECTED"` in its WHERE clause is the REAL authoritative gate —
+ *      re-checked at write time, not just trusted from step 2's earlier
+ *      read. Only once that succeeds does the new DeliveryProofAttempt row
+ *      get created, so a proof can never end up with a new attempt but an
+ *      unchanged (still-REJECTED) parent, or vice versa.
+ *   6. On any failure after the file was written, the new file is deleted.
+ *   7. The OLD attempt's file is never touched by any code path here.
+ *
+ * SQLite concurrency note (documented honestly, not assumed): this app's
+ * SQLite database allows exactly one writer at a time, so two resubmit
+ * calls for the same proof are already serialized by the database file
+ * itself before either transaction's logic runs. The WHERE-clause guard
+ * and the (deliveryProofId, attemptNumber) unique constraint are
+ * defense-in-depth for correctness under that single-writer model — they
+ * are not a substitute for the row-level locking a multi-writer database
+ * (e.g. a future Postgres migration) would need to give the same guarantee.
+ */
+export async function resubmitRejectedDeliveryProof(
+  _prevState: ResubmitProofState | undefined,
+  formData: FormData
+): Promise<ResubmitProofState> {
+  const session = await requireActionRole("DRIVER");
+  const proofId = String(formData.get("proofId") ?? "");
+
+  // Ownership + existence combined into one query, matching every other
+  // driver-scoped lookup in this file: an unknown id and another driver's
+  // id must be indistinguishable, so both produce the same generic
+  // failure. Only once ownership is established does the more specific
+  // "wrong status" message become safe to reveal (the driver already
+  // legitimately knows their own proof's real status).
+  const existing = await prisma.deliveryProof.findFirst({
+    where: { id: proofId, driverId: session.user.id },
+    select: { status: true },
+  });
+  if (!existing) {
+    return { error: "Delivery proof not found." };
+  }
+  if (existing.status !== "REJECTED") {
+    return { error: "Only rejected proofs can be resubmitted." };
+  }
+
+  let stored;
+  try {
+    stored = await saveProofImage(formData.get("image"));
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Resubmission failed. Please try again.",
+    };
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const latest = await tx.deliveryProofAttempt.findFirst({
+        where: { deliveryProofId: proofId },
+        orderBy: { attemptNumber: "desc" },
+      });
+      const nextAttemptNumber = (latest?.attemptNumber ?? 0) + 1;
+      const now = new Date();
+
+      const updated = await tx.deliveryProof.updateMany({
+        where: { id: proofId, driverId: session.user.id, status: "REJECTED" },
+        data: {
+          imagePath: stored.storedName,
+          mimeType: stored.mimeType,
+          sizeBytes: stored.sizeBytes,
+          status: "PENDING",
+          rejectionReason: null,
+          verifiedAt: null,
+          verifiedById: null,
+          // OCR reset (D7 requirement): a new image means any prior
+          // extraction is meaningless. No OCR run is triggered here or
+          // anywhere in D7 — this only clears the D5 fields back to their
+          // untouched default shape.
+          ocrStatus: "NOT_STARTED",
+          ocrText: null,
+          ocrInvoiceNumber: null,
+          ocrCustomerName: null,
+          ocrConfidence: null,
+          ocrProcessedAt: null,
+          ocrError: null,
+        },
+      });
+      if (updated.count === 0) {
+        // Re-checked at write time (see the function comment) — the proof
+        // stopped being REJECTED between the read above and this write.
+        throw new Error("Only rejected proofs can be resubmitted.");
+      }
+
+      await tx.deliveryProofAttempt.create({
+        data: {
+          deliveryProofId: proofId,
+          attemptNumber: nextAttemptNumber,
+          imagePath: stored.storedName,
+          mimeType: stored.mimeType,
+          sizeBytes: stored.sizeBytes,
+          submittedAt: now,
+          submittedById: session.user.id,
+          status: "PENDING",
+        },
+      });
+    });
+  } catch (error) {
+    // The new file was already written before the transaction ran — clean
+    // it up rather than orphaning it. The OLD attempt's file is never
+    // touched by this function.
+    await deleteProofImage(stored.storedName);
+    return {
+      error: error instanceof Error ? error.message : "Resubmission failed. Please try again.",
+    };
+  }
+
+  revalidatePath("/driver");
+  revalidatePath(`/driver/${proofId}`);
   return {};
 }

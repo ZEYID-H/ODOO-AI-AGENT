@@ -22,11 +22,14 @@ function OcrStatusLabel({ status }: { status: OcrStatus }) {
 }
 
 /**
- * Dedicated review page for one proof (D4). Everything shown here comes
- * from persisted data — reviewer, timestamps, and reason render from the
- * database row, never from client state, so what the owner sees IS the
- * audit record. Review controls exist only while the proof is PENDING;
- * a decided proof is immutable and shows its decision instead.
+ * Dedicated review page for one proof (D4, Attempt History added in D7).
+ * Everything shown here comes from persisted data — reviewer, timestamps,
+ * and reason render from the database row, never from client state, so
+ * what the owner sees IS the audit record. Review controls exist only
+ * while the proof is PENDING; a decided proof is immutable and shows its
+ * decision instead. The Review section always reflects the CURRENT
+ * (latest) attempt's outcome; Attempt History below it shows every
+ * submission, including ones a later resubmission superseded.
  *
  * D5+ extension point: OCR status, extracted invoice fields, confidence,
  * and the Odoo match/manual-correction panel slot in as additional
@@ -172,6 +175,78 @@ export default async function DeliveryProofDetailsPage({
             )}
           </dl>
         )}
+      </section>
+
+      {/* Attempt History (D7): every image the driver ever submitted for
+          this proof, newest first — a decision documented in
+          getDeliveryProofForOwner's comment, matching the review queue's
+          own newest-first convention. Nothing here is ever edited after
+          the fact; a rejected attempt keeps its reason forever, even after
+          a later attempt is verified. */}
+      <section className="rounded-xl border border-line bg-surface-2 p-4 space-y-3">
+        <h2 className="text-base font-semibold text-ink">Attempt History</h2>
+        <ul className="space-y-3">
+          {proof.attempts.map((attempt, index) => {
+            const isCurrent = index === 0; // newest-first: index 0 is the latest attempt
+            return (
+              <li
+                key={attempt.id}
+                className="flex gap-3 rounded-lg border border-line bg-surface p-3"
+              >
+                {attempt.imagePath ? (
+                  <a
+                    href={`/api/proofs/${proof.id}/attempts/${attempt.id}/image`}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Open full size"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`/api/proofs/${proof.id}/attempts/${attempt.id}/image`}
+                      alt={`Attempt ${attempt.attemptNumber}`}
+                      className="h-20 w-20 rounded-lg object-cover border border-line shrink-0"
+                    />
+                  </a>
+                ) : (
+                  <div className="h-20 w-20 rounded-lg border border-line grid place-items-center text-[10px] text-ink-dim shrink-0">
+                    no photo
+                  </div>
+                )}
+
+                <div className="min-w-0 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium text-ink">
+                      Attempt {attempt.attemptNumber}
+                    </span>
+                    {isCurrent && (
+                      <span className="text-xs px-2 py-0.5 rounded-full border border-accent/40 bg-accent/10 text-accent">
+                        Current
+                      </span>
+                    )}
+                    <ProofStatusBadge status={attempt.status} />
+                  </div>
+                  <p className="text-xs text-ink-dim">
+                    Submitted by {attempt.submittedByUsername} ·{" "}
+                    {new Date(attempt.submittedAt).toLocaleString()}
+                  </p>
+                  {attempt.status === "REJECTED" && attempt.rejectionReason && (
+                    <p className="text-xs text-danger whitespace-pre-wrap">
+                      Reason: {attempt.rejectionReason}
+                    </p>
+                  )}
+                  {attempt.reviewedByUsername && (
+                    <p className="text-xs text-ink-dim">
+                      Reviewed by {attempt.reviewedByUsername}
+                      {attempt.reviewedAt
+                        ? ` · ${new Date(attempt.reviewedAt).toLocaleString()}`
+                        : ""}
+                    </p>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       </section>
     </main>
   );

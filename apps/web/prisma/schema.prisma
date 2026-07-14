@@ -32,14 +32,16 @@ datasource db {
 // The pre-D1 owner keeps the id "personal-user" (seeded as username
 // "admin") so existing conversation ownership survives unchanged.
 model User {
-  id             String          @id @default(cuid())
-  createdAt      DateTime        @default(now())
-  username       String          @unique
-  passwordHash   String
-  role           String // "OWNER" | "DRIVER"
-  conversations  Conversation[]
-  deliveryProofs DeliveryProof[] @relation("DriverProofs")
-  reviewedProofs DeliveryProof[] @relation("ReviewedProofs")
+  id                String                 @id @default(cuid())
+  createdAt         DateTime               @default(now())
+  username          String                 @unique
+  passwordHash      String
+  role              String // "OWNER" | "DRIVER"
+  conversations     Conversation[]
+  deliveryProofs    DeliveryProof[]        @relation("DriverProofs")
+  reviewedProofs    DeliveryProof[]        @relation("ReviewedProofs")
+  submittedAttempts DeliveryProofAttempt[] @relation("AttemptSubmitter")
+  reviewedAttempts  DeliveryProofAttempt[] @relation("AttemptReviewer")
 }
 
 // Delivery Management D2 (docs/DELIVERY_MANAGEMENT_PLAN.md §5): metadata
@@ -88,12 +90,82 @@ model DeliveryProof {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  // Immutable evidence/review history (D7 — see
+  // docs/DELIVERY_MANAGEMENT_PLAN.md §9 D7). The fields above remain the
+  // proof's CURRENT state (what the queue, dashboard, and image route read
+  // without a join); `attempts` is the full history that current state was
+  // derived from. Every proof has at least one attempt from the moment it
+  // is created — see DeliveryProofAttempt's own comment.
+  attempts DeliveryProofAttempt[]
+
   // The driver portal's hot query ("my recent uploads") and the admin
   // review queue, respectively; single-column indexes serve the D4 filters.
   @@index([driverId, uploadedAt])
   @@index([status, uploadedAt])
   @@index([invoiceNumber])
   @@index([uploadedAt])
+}
+
+// Immutable per-submission evidence and review record (D7 — Rejected Proof
+// Resubmission, docs/DELIVERY_MANAGEMENT_PLAN.md §9 D7). One row per image
+// a driver ever submitted for a given DeliveryProof: attempt 1 is created
+// atomically with the parent proof (D2/D3's create paths, and the D2→D7
+// migration backfill for every pre-D7 proof); attempt 2, 3, ... are created
+// by resubmitDeliveryProof, one per resubmission, NEVER by editing an
+// existing attempt row. Once written, an attempt's submission fields never
+// change; its review fields (status/rejectionReason/reviewedAt/reviewedById)
+// are set exactly once, when an OWNER reviews it while it is the latest
+// attempt (see reviewDeliveryProof in app/actions/delivery-proofs.ts) —
+// older attempts are never touched by a later review.
+//
+// imagePath/mimeType/sizeBytes are nullable, mirroring DeliveryProof's own
+// nullable image fields: this is what makes the D7 migration's backfill
+// safe for a hypothetical pre-D3 metadata-only proof (imagePath was always
+// nullable on the parent; an attempt describing that same proof must be
+// able to record "no image" too, not fail the migration). In practice every
+// attempt created by the D3+ upload/resubmission flows has a real image —
+// nullability here is a safety property of the data model, not an invitation
+// to submit proofs without photos.
+//
+// status/role values are Strings for the same SQLite→Postgres portability
+// reason as every other status field in this schema; allowed values
+// ("PENDING" | "VERIFIED" | "REJECTED" — deliberately the same three as
+// DeliveryProof.status, no speculative fourth state) are enforced at the
+// application boundary.
+model DeliveryProofAttempt {
+  id              String        @id @default(cuid())
+  deliveryProofId String
+  deliveryProof   DeliveryProof @relation(fields: [deliveryProofId], references: [id], onDelete: Cascade)
+
+  // The latest attempt is defined as the row with the greatest
+  // attemptNumber for a given deliveryProofId — always computed server-side
+  // (MAX/orderBy desc), never trusted from a client. @@unique below is both
+  // the correctness constraint (no two attempts can claim the same number)
+  // and the index that serves "find the latest attempt" — a separate plain
+  // index on the same two columns would be redundant with the unique index
+  // SQLite already builds for it, so none is added.
+  attemptNumber Int
+
+  imagePath String?
+  mimeType  String?
+  sizeBytes Int?
+
+  submittedAt   DateTime @default(now())
+  submittedById String
+  submittedBy   User     @relation("AttemptSubmitter", fields: [submittedById], references: [id], onDelete: Cascade)
+
+  status          String    @default("PENDING") // "PENDING" | "VERIFIED" | "REJECTED"
+  rejectionReason String?
+  reviewedAt      DateTime?
+  reviewedById    String?
+  reviewedBy      User?     @relation("AttemptReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([deliveryProofId, attemptNumber])
+  @@index([submittedById, submittedAt])
+  @@index([status, submittedAt])
 }
 
 model Conversation {

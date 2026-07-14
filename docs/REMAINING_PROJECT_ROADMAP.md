@@ -134,7 +134,28 @@ Documented here for track continuity only — **this phase is done**, not upcomi
 
 ---
 
-### D7 — Rejected Proof Resubmission
+### D7 — Rejected Proof Resubmission ✅ COMPLETE
+
+**Delivered exactly as planned below**, with one resolved decision: the D7 planning
+gate chose `DeliveryProofAttempt` child records (the preferred option named in this
+plan) over versioned file metadata. Every requirement in this section shipped —
+atomic attempt-1 creation with every new proof, server-computed sequential attempt
+numbers, atomic parent+latest-attempt updates on every review, OCR fields reset (not
+re-run) on resubmission, old images never deleted, attempt-history images served
+under the same authorization boundary as the current image
+(`/api/proofs/[id]/attempts/[attemptId]/image`, sharing `lib/image-auth.ts` with the
+existing route). 42 new tests (244 total), including an automated replay of the real
+migration SQL against a reconstructed pre-D7 database (pending/verified/rejected/
+null-image scenarios) and a real concurrent-resubmission test (not simulated only).
+Verified live against the actual Docker volume's pre-existing historical proofs — a
+real REJECTED proof was carried through resubmit → reject → resubmit → verify
+(attempts 1→2→3), with older attempts retaining their own distinct rejection reasons
+throughout, and all of it survived a full container restart. Full design rationale:
+`docs/DELIVERY_MANAGEMENT_PLAN.md` §9's D7 write-up; commit hash in that phase's
+final report.
+
+**Below is the original phase plan, kept for its design rationale — see the
+Delivered note above for what actually shipped and where it diverged (none did).**
 
 - **Module owner:** `apps/web`
 - **Goal:** allow a driver to replace or resubmit a rejected delivery-proof image.
@@ -630,8 +651,8 @@ launch checklist. **Release gate name: "Public SaaS Launch."** This is Milestone
 
 ### Milestone 1 — Internal Delivery MVP
 
-- **Required completed phases:** D1, D1.1, D2, D3, D4, D5, D6, D6.1, D6.2 (all
-  already done), D7, D8, D9.
+- **Required completed phases:** D1, D1.1, D2, D3, D4, D5, D6, D6.1, D6.2, D7 (all
+  already done), D8, D9.
 - **Acceptance criteria:** the D9 acceptance gate in §3 above — drivers upload
   without office assistance, owners review reliably, rejections are correctable,
   no cross-driver leakage, data/files survive restarts, WhatsApp can be retired.
@@ -690,18 +711,19 @@ is planned using this template, matching the planning gate in
 
 ## 10. Priority Recommendation
 
-**Immediate order, reconciled against verified reality (D6.2 is already complete):**
+**Immediate order, reconciled against verified reality (D6.2 and D7 are both already
+complete):**
 
-1. ~~D6.2~~ — **already complete** (`e98cd84`); listed here only to preserve the
-   originally-requested sequence numbering, not as a pending item.
-2. **D7 — Rejected Proof Resubmission** (the actual immediate next phase)
-3. D8 — Driver Notifications
+1. ~~D6.2~~ — **already complete** (`e98cd84`).
+2. ~~D7 — Rejected Proof Resubmission~~ — **already complete**; see this document's
+   D7 section above for what shipped.
+3. **D8 — Driver Notifications** (the actual immediate next phase)
 4. D9 — Internal pilot
 5. O1 — only after pilot feedback confirms OCR is worth pursuing
 6. Continue OCR (O2 onward) only if the pilot confirms it provides meaningful value
 
 **Explicitly stated, as required:** do not let OCR delay replacing the WhatsApp
-workflow. Track 1 (D7 → D9) is the entire near-term priority; Track 2 does not begin
+workflow. Track 1 (D8 → D9) is the entire near-term priority; Track 2 does not begin
 until Milestone 1 is reached and the pilot has actually confirmed OCR is worth
 building, not merely because it was next on a list.
 

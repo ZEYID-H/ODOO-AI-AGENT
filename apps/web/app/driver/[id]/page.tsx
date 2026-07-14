@@ -3,15 +3,21 @@ import { notFound } from "next/navigation";
 import { requireRole } from "@/lib/session-guard";
 import { getMyDeliveryProof } from "@/app/actions/delivery-proofs";
 import ProofStatusBadge from "@/components/ProofStatusBadge";
+import ProofResubmitForm from "@/components/ProofResubmitForm";
 
 /**
- * Driver's read-only detail view of one of THEIR OWN uploads (D6).
- * getMyDeliveryProof scopes to the session driver, so another driver's id
- * (or an unknown one) is a 404 — never a data leak, never a probe. The
- * driver view type carries no OCR and no reviewer-identity fields, so
- * there is nothing owner-only to expose here even by accident. Drivers
- * cannot modify anything: this is display only (no delete, no replace,
- * no re-upload — deferred).
+ * Driver's detail view of one of THEIR OWN uploads (D6, resubmission added
+ * in D7). getMyDeliveryProof scopes to the session driver, so another
+ * driver's id (or an unknown one) is a 404 — never a data leak, never a
+ * probe. The driver view type carries no OCR and no reviewer-identity
+ * fields, so there is nothing owner-only to expose here even by accident.
+ * Drivers still cannot modify review status, rejection reason, reviewer
+ * identity, timestamps, OCR data, or attempt numbers — the ONLY mutation
+ * available from this page is resubmitting a new photo while the proof is
+ * REJECTED, and even that goes through a guarded Server Action that
+ * re-derives identity from the session and re-checks status atomically.
+ * The resubmit form is rendered only for a REJECTED proof — hidden for
+ * PENDING (nothing to correct yet) and VERIFIED (already accepted).
  */
 export default async function DriverProofDetailPage({
   params,
@@ -67,12 +73,23 @@ export default async function DriverProofDetailPage({
       </section>
 
       {proof.status === "REJECTED" && (
-        <section className="rounded-xl border border-danger/40 bg-danger/10 p-4 space-y-1">
-          <h2 className="text-sm font-semibold text-danger">Rejected</h2>
-          <p className="text-sm text-danger whitespace-pre-wrap">
-            {proof.rejectionReason ?? "No reason provided."}
-          </p>
-        </section>
+        <>
+          <section className="rounded-xl border border-danger/40 bg-danger/10 p-4 space-y-1">
+            <h2 className="text-sm font-semibold text-danger">Rejected</h2>
+            <p className="text-sm text-danger whitespace-pre-wrap">
+              {proof.rejectionReason ?? "No reason provided."}
+            </p>
+          </section>
+
+          <section className="rounded-xl border border-line bg-surface-2 p-4 space-y-3">
+            <h2 className="text-base font-semibold text-ink">Retake &amp; Resubmit</h2>
+            <p className="text-sm text-ink-dim">
+              Take a new photo of the delivered invoice and submit it — the
+              proof will go back to Pending review.
+            </p>
+            <ProofResubmitForm proofId={proof.id} />
+          </section>
+        </>
       )}
     </div>
   );
