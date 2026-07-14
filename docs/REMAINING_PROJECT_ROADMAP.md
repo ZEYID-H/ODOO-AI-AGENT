@@ -219,7 +219,26 @@ Delivered note above for what actually shipped and where it diverged (none did).
 
 ---
 
-### D8 — Driver Notifications
+### D8 — Driver In-App Notifications ✅ COMPLETE
+
+**Delivered exactly as planned below**, with the "prefer derived state" recommendation
+followed all the way through: no `Notification` table was created; every event
+(`VERIFIED`, `REJECTED`, `RESUBMITTED_PENDING`) is derived live from D7's already-
+immutable `DeliveryProofAttempt` rows. Read/unread state uses one additive nullable
+`User.deliveryNotificationsSeenAt` field (the plan's suggested design), evaluated
+explicitly against a correctness edge case (a review landing in the exact window
+between listing and mark-read) and kept anyway as the smallest safe option — a
+monotonic sequence number would close that window fully but isn't justified at this
+app's scale; documented, not hidden, in code. Historical baseline handled by an
+additive migration backfilling every existing user's cursor to "now" at migration
+time, so no pre-existing driver was flooded with a wall of historical unread events —
+verified live against the real Docker volume's pre-existing users and attempts,
+which produced a clean zero-badge baseline after upgrade. 26 new tests (270 total).
+Full design rationale: `docs/DELIVERY_MANAGEMENT_PLAN.md` §9's D8 write-up.
+
+**Below is the original phase plan, kept for its design rationale — see the
+Delivered note above for what actually shipped (the derived-state path was used, as
+recommended, with the read-cursor design named in that plan).**
 
 - **Module owner:** `apps/web`
 - **Goal:** give drivers a clear in-app notification/status inbox — no more finding
@@ -651,8 +670,8 @@ launch checklist. **Release gate name: "Public SaaS Launch."** This is Milestone
 
 ### Milestone 1 — Internal Delivery MVP
 
-- **Required completed phases:** D1, D1.1, D2, D3, D4, D5, D6, D6.1, D6.2, D7 (all
-  already done), D8, D9.
+- **Required completed phases:** D1, D1.1, D2, D3, D4, D5, D6, D6.1, D6.2, D7, D8 (all
+  already done), D9.
 - **Acceptance criteria:** the D9 acceptance gate in §3 above — drivers upload
   without office assistance, owners review reliably, rejections are correctable,
   no cross-driver leakage, data/files survive restarts, WhatsApp can be retired.
@@ -711,19 +730,21 @@ is planned using this template, matching the planning gate in
 
 ## 10. Priority Recommendation
 
-**Immediate order, reconciled against verified reality (D6.2 and D7 are both already
-complete):**
+**Immediate order, reconciled against verified reality (D6.2, D7, and D8 are all
+already complete):**
 
 1. ~~D6.2~~ — **already complete** (`e98cd84`).
 2. ~~D7 — Rejected Proof Resubmission~~ — **already complete**; see this document's
    D7 section above for what shipped.
-3. **D8 — Driver Notifications** (the actual immediate next phase)
-4. D9 — Internal pilot
+3. ~~D8 — Driver In-App Notifications~~ — **already complete**; see this document's
+   D8 section above for what shipped.
+4. **D9 — Internal Pilot and Operational Validation** (the actual immediate next
+   phase)
 5. O1 — only after pilot feedback confirms OCR is worth pursuing
 6. Continue OCR (O2 onward) only if the pilot confirms it provides meaningful value
 
 **Explicitly stated, as required:** do not let OCR delay replacing the WhatsApp
-workflow. Track 1 (D8 → D9) is the entire near-term priority; Track 2 does not begin
+workflow. Track 1 (D9) is the entire near-term priority; Track 2 does not begin
 until Milestone 1 is reached and the pilot has actually confirmed OCR is worth
 building, not merely because it was next on a list.
 

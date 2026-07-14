@@ -42,6 +42,20 @@ model User {
   reviewedProofs    DeliveryProof[]        @relation("ReviewedProofs")
   submittedAttempts DeliveryProofAttempt[] @relation("AttemptSubmitter")
   reviewedAttempts  DeliveryProofAttempt[] @relation("AttemptReviewer")
+
+  // Driver notification read-cursor (D8 — see
+  // docs/DELIVERY_MANAGEMENT_PLAN.md §9 D8). Deliberately a single nullable
+  // timestamp, not a generic Notification table: Delivery events are
+  // derived on read from the already-immutable DeliveryProofAttempt
+  // history (see app/actions/delivery-notifications.ts), so there is
+  // nothing to store per-event — only "the newest event this driver has
+  // seen." NULL means "never opened the inbox" (every derived event reads
+  // as unread); the D8 migration backfills every pre-existing user to the
+  // migration's own execution time, so historical events do not flood
+  // existing drivers as unread on upgrade. OWNER rows carry this field too
+  // (uniform schema) but never read or write it — the feature is
+  // DRIVER-only end to end.
+  deliveryNotificationsSeenAt DateTime?
 }
 
 // Delivery Management D2 (docs/DELIVERY_MANAGEMENT_PLAN.md §5): metadata

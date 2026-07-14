@@ -234,6 +234,11 @@ Draft only — **do not implement in this documentation phase.**
 > `(submittedById, submittedAt)` and `(status, submittedAt)`). Full design rationale
 > is in §9's D7 write-up, not repeated here — this draft below is left as the
 > original D2 planning artifact.
+>
+> **D8 addendum (shipped):** `User` gained one additive nullable field —
+> `deliveryNotificationsSeenAt DateTime?` — the driver notification read cursor. No
+> new model: D8's events are derived entirely from `DeliveryProofAttempt` at read
+> time, not stored. Full design rationale is in §9's D8 write-up.
 
 
 
@@ -420,6 +425,8 @@ heading differs from what shipped, this table is authoritative.
   retake and resubmit a REJECTED proof's photo; every submission is preserved forever
   as an immutable `DeliveryProofAttempt` row, never overwritten or deleted; see §5's
   data model addendum and the detailed design notes below.
+- **D8 — Driver In-App Notifications** — a derived (not stored) event feed built
+  entirely on top of D7's immutable attempt history; see the write-up below.
 
 **Today's Summary, defined (as of D6.2):** every card on the driver dashboard's
 Today's Summary is scoped to proofs **uploaded** during the current business day
@@ -462,9 +469,61 @@ are defense-in-depth under that model, not a substitute for the row-level lockin
 multi-writer database (a future Postgres migration) would need for the same
 guarantee — verified with a real concurrent-call test, not simulated only.
 
+**D8 — Driver In-App Notifications, defined:** there is no `Notification` table.
+Events (`VERIFIED`, `REJECTED`, `RESUBMITTED_PENDING`) are derived, on every read,
+from `DeliveryProofAttempt` rows already made immutable by D7 — a `RESUBMITTED_PENDING`
+event exists whenever `attemptNumber > 1` (timestamped at `submittedAt`), and a
+`VERIFIED`/`REJECTED` event exists whenever an attempt has been reviewed
+(timestamped at `reviewedAt`, carrying that attempt's own frozen
+`rejectionReason`). A single attempt can produce both, independently timestamped —
+the resubmission event is never lost when that same attempt is later reviewed,
+because it is derived from `attemptNumber` alone, not from the review outcome. This
+was deliberately chosen over a generic `Notification` table: every event this
+feature needs already exists, permanently and correctly, as a side effect of D7's
+own transactions — a separate table would mean duplicating write paths (one more
+place a review/resubmission could partially fail) for zero new information. A
+still-pending attempt 1 produces no event by construction (a driver doesn't need
+telling about their own upload); a failed review or failed resubmission — because
+neither commits — produces no event, with no special-case filtering required.
+
+Read/unread state is a single nullable `User.deliveryNotificationsSeenAt`
+timestamp, not a per-event row — evaluated the alternative explicitly and rejected
+it: the only genuine correctness risk of a timestamp cursor is a review committing
+in the exact multi-millisecond window between a driver's inbox-list query and the
+follow-up mark-read write, which would be marked read without the driver having
+seen it. This was judged negligible for a manual, human-paced review workflow (not
+a monotonic sequence number's use case) and is documented, not hidden, in
+`markMyDeliveryNotificationsRead`'s own code comment — the "smallest safe
+alternative" the phase's plan asked for was staying with one timestamp field, not
+adding a version counter. `NULL` means "never opened the inbox" (everything reads
+unread). **Mark-as-read behavior:** opening `/driver/notifications` calls
+`listMyDeliveryNotifications()` (computing `read` against the OLD cursor) and only
+then `markMyDeliveryNotificationsRead()` (advancing the cursor to server time) —
+in that order, so a driver's first view of a new event still shows it as unread
+before the cursor moves past it. Neither the unread-count badge (rendered in the
+driver chrome on every `/driver/*` page) nor any other page-open ever advances the
+cursor — only visiting the notifications page itself does.
+
+**Historical baseline (migration `20260714163443_driver_notification_read_cursor`):**
+purely additive (`ALTER TABLE ... ADD COLUMN`), plus one backfill `UPDATE` setting
+every pre-existing user's cursor to the migration's own execution moment — not
+`NULL`. Historical events remain fully visible in the inbox; only events occurring
+after the migration ran count as unread. Leaving existing drivers at `NULL` would
+have flooded them with every VERIFIED/REJECTED/RESUBMITTED_PENDING event across the
+app's entire history as unread the moment D8 shipped — verified live against the
+real Docker volume's pre-existing users and 6 pre-existing attempts, which produced
+a zero unread-badge baseline after upgrade.
+
+**Notification result limit:** the rendered list is capped at the 50 newest events
+(`listMyDeliveryNotifications`); the unread **count** is intentionally NOT capped by
+that limit — a badge must report the true outstanding number even if a driver has
+more than 50 unread items, while the list itself stays a bounded render. The
+underlying attempt query is not paginated at the database level, matching this
+codebase's established stance elsewhere (`listMyDeliveryProofs`, the sidebar
+conversation list) that pagination is deferred until real usage shows it's needed.
+
 **Future phases (planned, NOT implemented — no code exists for these):**
 
-- **D8 — Driver Notifications** — notify drivers of verify/reject outcomes
 - **OCR design/implementation phases** — the extraction engine and its planning
   (the original "D6 — OCR Planning" content below is the seed for this)
 - **Odoo invoice matching** — cross-reference extracted data via the read-only gateway
