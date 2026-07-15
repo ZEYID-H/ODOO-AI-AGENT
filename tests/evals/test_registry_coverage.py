@@ -173,25 +173,30 @@ def test_rule_based_fallback_has_no_history_parameter():
     )
 
 
-# ── Silent scope-broadening on an unrecognized customer name (unpaid invoices) ──
+# ── Unknown-customer handling in unpaid invoices ────────────────────────────
+# AG1 originally documented that an explicitly-named unknown customer produced
+# a silent zero-row "success" (inconsistent with every other customer-scoped
+# tool). AG2 fixed the TOOL-level contract: a non-empty unknown name now
+# returns the same {"error": ...} shape as get_customer_balance et al. The
+# ROUTER-level half of the AG1 finding is unchanged and still owned by AG3.
 
-def test_unknown_customer_silently_broadens_unpaid_invoices_to_all_customers():
-    """Direct tool-level proof (bypasses routing entirely): get_unpaid_invoices() treats
-    customer_name=None as 'no filter'. Combined with the router's inability to extract an
-    unrecognized name, an unrecognized customer's unpaid-invoices question silently returns
-    every customer's unpaid invoices instead of an empty result or an error."""
+def test_unknown_customer_now_errors_instead_of_silently_succeeding():
+    """AG2 contract: get_unpaid_invoices() with a non-empty unknown name returns an
+    error result — never a silent zero-row success, never an all-customer broadening."""
     from src.tools.invoice_tools import get_unpaid_invoices
 
     all_unpaid = get_unpaid_invoices(customer_name=None)
     named_unknown = get_unpaid_invoices(customer_name="GALAXY TRADERS TOTALLY UNKNOWN CO")
 
-    assert named_unknown["count"] == 0, "an explicitly unmatched name correctly filters to zero rows"
+    assert "error" in named_unknown, "unknown customer must be an explicit error (AG2 fix)"
+    assert "not found" in named_unknown["error"]
     assert all_unpaid["count"] > 0, "sanity: the mock dataset has unpaid invoices at all"
 
-    # The routing-layer defect: _extract_customer returns None (not the literal unmatched
-    # string) for an unrecognized name, so the ROUTER ends up calling
-    # get_unpaid_invoices(customer_name=None, ...) — the "no filter" branch — not the
-    # explicitly-filtered branch demonstrated above.
+    # STILL-OPEN routing-layer defect (owner: AG3, unchanged in AG2):
+    # _extract_customer returns None (not the literal unmatched string) for an
+    # unrecognized name, so the rule-based ROUTER calls
+    # get_unpaid_invoices(customer_name=None, ...) — the "no filter" branch —
+    # silently broadening the question to every customer's unpaid invoices.
     result = _rule_based_route("Show unpaid invoices for GALAXY TRADERS")
     assert _extract_customer("Show unpaid invoices for GALAXY TRADERS") is None
     assert result["tool"] == "get_unpaid_invoices"

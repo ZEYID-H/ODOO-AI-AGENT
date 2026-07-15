@@ -1,5 +1,11 @@
 from src.data import provider
 from src.utils.date_filters import parse_date_range, filter_by_date
+from src.tools.customer_tools import _normalize_limit
+
+_DEFAULT_PRODUCT_LIMIT = 5
+# Top-customer/top-product breakdowns are bounded so a live-Odoo dataset with
+# ~90+ customers doesn't render its entire customer base as a "top" list.
+_SUMMARY_TOP_N = 5
 
 
 _MONTH_NAMES = {
@@ -54,6 +60,7 @@ def _resolve_category(sale: dict, by_id: dict, by_name: dict) -> str:
 
 def get_top_selling_products(period: str | None = None, month: int | None = None,
                              year: int | None = None, limit: int = 5) -> dict:
+    limit = _normalize_limit(limit, _DEFAULT_PRODUCT_LIMIT)
     filtered = _filter_sales(month, year, period)
 
     cat_by_id, cat_by_name = _build_category_maps()
@@ -80,6 +87,7 @@ def get_top_selling_products(period: str | None = None, month: int | None = None
 
     return {
         "products": top,
+        "product_count": len(ranked),
         "period_month": month,
         "period_year": year,
         "period_label": _resolve_label(month, year, period),
@@ -103,6 +111,8 @@ def get_sales_summary(period: str | None = None, month: int | None = None,
             "avg_transaction": 0,
             "by_customer": [],
             "by_product": [],
+            "customer_count": 0,
+            "product_count": 0,
         }
 
     total_revenue = sum(s["total"] for s in filtered)
@@ -115,7 +125,7 @@ def get_sales_summary(period: str | None = None, month: int | None = None,
         [{"customer_name": k, "revenue": v} for k, v in by_customer.items()],
         key=lambda x: x["revenue"],
         reverse=True,
-    )
+    )[:_SUMMARY_TOP_N]
 
     by_product: dict[str, float] = {}
     for s in filtered:
@@ -134,7 +144,9 @@ def get_sales_summary(period: str | None = None, month: int | None = None,
         "total_transactions": len(filtered),
         "avg_transaction": round(avg_transaction, 2),
         "by_customer": top_customers,
-        "by_product": top_products[:5],
+        "by_product": top_products[:_SUMMARY_TOP_N],
+        "customer_count": len(by_customer),
+        "product_count": len(by_product),
     }
 
 
@@ -162,8 +174,11 @@ def format_top_products(data: dict) -> str:
         f"**Total Revenue:** {fmt_currency(data['total_revenue'])} | "
         f"**Transactions:** {data['total_transactions']}",
         "",
-        fmt_product_table(data["products"]),
     ]
+    product_count = data.get("product_count", len(data["products"]))
+    if product_count > len(data["products"]):
+        lines += [f"_Showing top {len(data['products'])} of {product_count} product(s)._", ""]
+    lines.append(fmt_product_table(data["products"]))
     return "\n".join(lines)
 
 
@@ -184,7 +199,8 @@ def format_sales_summary(data: dict) -> str:
         f"| Transactions | {data['total_transactions']} |",
         f"| Avg. Transaction Value | {fmt_currency(data['avg_transaction'])} |",
         "",
-        "### Top Customers by Revenue",
+        _top_section_heading("Top Customers by Revenue",
+                             len(data["by_customer"]), data.get("customer_count")),
         "| Customer | Revenue |",
         "|----------|---------|",
     ]
@@ -193,7 +209,8 @@ def format_sales_summary(data: dict) -> str:
 
     lines += [
         "",
-        "### Top Products by Revenue",
+        _top_section_heading("Top Products by Revenue",
+                             len(data["by_product"]), data.get("product_count")),
         "| Product | Revenue |",
         "|---------|---------|",
     ]
@@ -201,3 +218,10 @@ def format_sales_summary(data: dict) -> str:
         lines.append(f"| {p['product_name']} | {fmt_currency(p['revenue'])} |")
 
     return "\n".join(lines)
+
+
+def _top_section_heading(title: str, shown: int, total: int | None) -> str:
+    """'### Top Customers by Revenue (top 5 of 92)' when the list is truncated."""
+    if total is not None and total > shown:
+        return f"### {title} (top {shown} of {total})"
+    return f"### {title}"

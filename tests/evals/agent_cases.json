@@ -575,9 +575,9 @@
       "that the returned invoices all belong to GALAXY TRADERS",
       "any invoice total attributed to GALAXY TRADERS specifically"
     ],
-    "expectedErrorBehavior": "GALAXY TRADERS is unknown. get_unpaid_invoices() treats a missing/None customer_name as 'no filter, return all customers' (src/tools/invoice_tools.py) — it does NOT error on an unrecognized name the way get_customer_balance does. Verified directly: the rule-based path's _extract_customer() finds no match, customer stays None, and get_unpaid_invoices(customer_name=None, ...) silently returns every customer's unpaid invoices. A real risk if the OpenAI path behaves the same way (passes through the literal unmatched string, or omits customer_name) — measuring which happens is the point of this case.",
+    "expectedErrorBehavior": "GALAXY TRADERS is unknown. AG2 UPDATE: get_unpaid_invoices() now validates a non-empty customer_name against the customer list and returns {\"error\": \"Customer 'GALAXY TRADERS' not found.\"} — the same error shape as get_customer_balance — instead of the pre-AG2 silent zero-row success. Whitespace-only/empty names normalize to the documented 'omit = all customers' semantics. The ROUTER-level half of the original AG1 finding is unchanged and still owned by AG3: the rule-based fallback's _extract_customer() returns None for an unrecognized name, silently broadening the query to all customers on that path.",
     "dataMode": "mock",
-    "notes": "High-value entity-handling probe: a wrong answer here is not a loud error, it is a silently too-broad result.",
+    "notes": "Entity-handling probe. Originally documented a silent too-broad result; the tool-level defect was fixed in AG2 (see docs/AI_AGENT_TOOL_CONTRACTS.md); the routing-level defect remains open (AG3).",
     "currentStatus": "PASS"
   },
   {

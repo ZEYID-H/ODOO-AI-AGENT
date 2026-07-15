@@ -20,6 +20,12 @@ _ISO_RANGE = re.compile(
     r"(\d{4}-\d{2}-\d{2})\s*(?:and|to|until|through|-)\s*(\d{4}-\d{2}-\d{2})"
 )
 _MONTH_RANGE = re.compile(r"from\s+([a-z]+)\s+to\s+([a-z]+)")
+# "June 2025" / "june, 2025" — an explicit year next to a month name. Checked
+# before the bare-month fallback, which would otherwise silently substitute
+# the CURRENT year for the one the user actually asked about.
+_MONTH_YEAR = re.compile(
+    r"\b(" + "|".join(_MONTHS) + r")\b,?\s+(\d{4})\b"
+)
 
 
 def _iso(d: date) -> str:
@@ -92,12 +98,34 @@ def parse_date_range(text: str, today: date | None = None) -> tuple[str | None, 
     if "last year" in t:
         return (_iso(date(today.year - 1, 1, 1)), _iso(date(today.year - 1, 12, 31)))
 
-    # Single month name, e.g. "sales in March".
+    # Month name with an explicit year, e.g. "June 2025" — honor that year.
+    m = _MONTH_YEAR.search(t)
+    if m:
+        return _month_span(int(m.group(2)), _MONTHS[m.group(1)])
+
+    # Single month name, e.g. "sales in March" (assume current year).
     for name, mth in _MONTHS.items():
         if re.search(r"\b" + name + r"\b", t):
             return _month_span(today.year, mth)
 
     return (None, None)
+
+
+def period_label(period: str | None, today: date | None = None) -> str | None:
+    """Human-readable label for a parsed period, or None if nothing parsed.
+
+    Gives date-filtered results explicit date-range context ("01 Jun 2026 –
+    30 Jun 2026") so a filtered answer can never be mistaken for an all-time
+    one. Returns None both for period=None and for unparseable text — no fake
+    date labels when no filter was actually applied.
+    """
+    if not period:
+        return None
+    start, end = parse_date_range(period, today)
+    if not (start and end):
+        return None
+    from src.utils.formatting import fmt_date
+    return f"{fmt_date(start)} – {fmt_date(end)}"
 
 
 def filter_by_date(items: list[dict], period: str | None, date_key: str,

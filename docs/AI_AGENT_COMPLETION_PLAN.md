@@ -339,6 +339,23 @@ every prior phase in this project's history.
 
 ### AG2 — Tool Contract and Response Consistency
 
+> **✅ Complete (2026-07-15).** Full contract specification, per-defect record,
+> error taxonomy, and deferrals: `docs/AI_AGENT_TOOL_CONTRACTS.md`. Summary:
+> 13 proven defects fixed (D1–D13), all in `src/tools/`, `src/utils/`,
+> `src/agent/tool_schemas.py`, `src/data/` — including a severe one found
+> during test-writing (D13: a whitespace-padded customer name returned a
+> silently wrong QAR 0.00 balance because filtering used the raw argument
+> instead of the canonical name after lookup). 95 new offline contract tests
+> in `tests/contracts/` (schema↔implementation, result shapes, formatters,
+> error taxonomy); 186 total Python tests green. AG1 model-assisted regression
+> re-run: 68/72 — equal aggregate, no new stable routing failure, and one
+> stable AG1 failure (`OV-EN-01`) now passes 4/4 after the D6 schema-
+> description fix. Routing rules, fallback date constants, financial formulas,
+> `route_query()`'s envelope, `app.py`, `apps/api`, and `apps/web` are all
+> unchanged. AG3 has **not** been started. Note on H2: this phase covers
+> contract/shape/formatting correctness; per-tool *business-formula*
+> verification remains with AG4's live-data validation.
+
 - **Module owner:** `src/tools/`, `src/utils/formatting.py`
 - **Goal:** standardize success/error presentation, currency/date formatting,
   and tool-context labeling across all 14 tools; verify every schema in

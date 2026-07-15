@@ -1,5 +1,32 @@
 # AI Agent Evaluation Baseline — AG1
 
+> **Post-AG2 comparison (2026-07-15).** The full model-assisted suite was
+> re-run after AG2's contract/formatter fixes, same model (`gpt-5.4-mini`),
+> same probe-substituted harness: **68/72 executed cases passed — equal to
+> AG1's aggregate, with no new stable routing failure.** Case-level changes,
+> both re-verified with 4 consecutive single-case re-runs:
+>
+> - `OV-EN-01` ("Which customers have overdue invoices?") — a stable AG1
+>   FAIL — now **passes 4/4**, plausibly aided by AG2's fix to
+>   `get_overdue_invoices`'s schema description (it falsely said "Takes no
+>   arguments"; defect D6 in `docs/AI_AGENT_TOOL_CONTRACTS.md`). Not claimed
+>   as certain causation; recorded as a measured improvement.
+> - `SS-VAR-01` ("What's our sales performance?") failed once in the full AG2
+>   run (routed to `get_dashboard_summary`) but **passes 4/4 on re-run**; the
+>   schemas of both tools involved were untouched by AG2 — model
+>   nondeterminism on a borderline phrasing, not a regression.
+>
+> Remaining stable failures — `GLOBAL-FOLLOWUP-01`, `GLOBAL-TERM-02`,
+> `GLOBAL-OPENAI-UNAVAIL-02` — are the known AG1 findings, unchanged and still
+> owned by AG3. Contract fixes vs formatter fixes vs unchanged routing
+> failures are separated in `docs/AI_AGENT_TOOL_CONTRACTS.md` §§4, 13.
+> One AG1 Layer A test was updated (not deleted) because it documented the
+> pre-AG2 defective behavior of `get_unpaid_invoices` with an unknown
+> customer: `tests/evals/test_registry_coverage.py::`
+> `test_unknown_customer_now_errors_instead_of_silently_succeeding` now proves
+> the fixed tool-level contract while still asserting the open router-level
+> broadening (AG3). Layer A is now 30/30 green again.
+
 **Status:** AG1 complete. **Run date:** 2026-07-14. **Scope:** measurement only — this phase
 observes and records current routing/tool-selection behavior; it does not change it. No
 production code (`src/`, `app.py`, `route_query()`, `TOOL_REGISTRY`, tool implementations,

@@ -7,7 +7,7 @@ get_top_debtors(). No overdue calculations are duplicated.
 
 from src.utils.formatting import fmt_currency, fmt_date, days_overdue
 from src.tools.invoice_tools import get_overdue_invoices
-from src.tools.customer_tools import get_top_debtors
+from src.tools.customer_tools import get_top_debtors, _normalize_limit
 
 _ACTIONS = {
     "Critical": "Immediate call / escalate",
@@ -28,6 +28,9 @@ def _priority_level(days: int, total_overdue: float) -> str:
 
 
 def get_collection_priorities(limit: int | None = None) -> dict:
+    # None means "all priorities"; an invalid limit falls back to None rather
+    # than slicing away the lowest-ranked rows from the wrong end.
+    limit = _normalize_limit(limit, None)
     overdue = get_overdue_invoices()
 
     # Outstanding balance per customer — one reuse of get_top_debtors (all debtors).
@@ -69,12 +72,20 @@ def get_collection_priorities(limit: int | None = None) -> dict:
 
 def format_collection_priorities(data: dict) -> str:
     rows = data["priorities"]
+    if not rows:
+        return ("## Collection Priorities\n\n"
+                "_No overdue accounts — nothing to follow up._")
+
     lines = [
         "## Collection Priorities",
         "",
         f"**{data['customer_count']}** customer(s) with overdue balances | "
         f"**Total Overdue: {fmt_currency(data['total_overdue'])}**",
         "",
+    ]
+    if data["customer_count"] > len(rows):
+        lines += [f"_Showing top {len(rows)} of {data['customer_count']} customer(s)._", ""]
+    lines += [
         "| Rank | Customer | Outstanding Balance | Overdue Amount | Overdue Invoices "
         "| Oldest Due Date | Days Overdue | Priority | Recommended Action |",
         "|------|----------|---------------------|----------------|------------------"
@@ -87,6 +98,4 @@ def format_collection_priorities(data: dict) -> str:
             f"| {fmt_date(r['oldest_due_date'])} | {r['days_overdue']} "
             f"| {r['priority']} | {r['recommended_action']} |"
         )
-    if not rows:
-        lines.append("\n_No overdue accounts — nothing to follow up._")
     return "\n".join(lines)

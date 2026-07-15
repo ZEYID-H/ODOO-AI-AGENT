@@ -1,5 +1,7 @@
 from datetime import date
 
+from src.utils.formatting import CURRENCY
+
 TODAY = date(2026, 6, 20)
 
 CUSTOMERS = [
@@ -9,7 +11,7 @@ CUSTOMERS = [
         "email": "accounts@applemart.com",
         "phone": "+1-555-0101",
         "credit_limit": 50000.00,
-        "currency": "USD",
+        "currency": CURRENCY,
     },
     {
         "id": 2,
@@ -17,7 +19,7 @@ CUSTOMERS = [
         "email": "finance@goldenstar.com",
         "phone": "+1-555-0202",
         "credit_limit": 80000.00,
-        "currency": "USD",
+        "currency": CURRENCY,
     },
     {
         "id": 3,
@@ -25,7 +27,7 @@ CUSTOMERS = [
         "email": "billing@blueocean.com",
         "phone": "+1-555-0303",
         "credit_limit": 30000.00,
-        "currency": "USD",
+        "currency": CURRENCY,
     },
     {
         "id": 4,
@@ -33,7 +35,7 @@ CUSTOMERS = [
         "email": "ap@techsolutions.com",
         "phone": "+1-555-0404",
         "credit_limit": 60000.00,
-        "currency": "USD",
+        "currency": CURRENCY,
     },
     {
         "id": 5,
@@ -41,7 +43,7 @@ CUSTOMERS = [
         "email": "accounts@fastdelivery.com",
         "phone": "+1-555-0505",
         "credit_limit": 25000.00,
-        "currency": "USD",
+        "currency": CURRENCY,
     },
 ]
 

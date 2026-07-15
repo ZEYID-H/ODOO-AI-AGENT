@@ -16,9 +16,11 @@ from datetime import date
 from src.data import provider
 from src.utils.formatting import fmt_currency, fmt_date, days_overdue
 from src.tools.collections_tools import get_collection_priorities
+from src.tools.customer_tools import _normalize_limit
 from src.tools.invoice_tools import get_unpaid_invoices
 from src.tools.sales_tools import get_sales_summary, get_top_selling_products
 
+_DEFAULT_ALERT_LIMIT = 10
 _LARGE_INVOICE_THRESHOLD = 15000.0
 _INACTIVITY_DAYS_THRESHOLD = 30
 _INACTIVITY_HIGH_DAYS = 60
@@ -182,6 +184,7 @@ def _opportunity_alerts(sales_summary_data: dict, activity_map: dict) -> list[di
 
 
 def get_business_alerts(limit: int = 10) -> dict:
+    limit = _normalize_limit(limit, _DEFAULT_ALERT_LIMIT)
     sales = provider.get_sales()
     activity_map = _sales_activity_by_customer(sales)
     sales_summary_data = get_sales_summary()
@@ -196,7 +199,7 @@ def get_business_alerts(limit: int = 10) -> dict:
 
     alerts.sort(key=lambda a: (_RISK_ORDER.get(a["risk_level"], 9), -a["_sort_key"]))
     total_alerts = len(alerts)
-    limited = alerts[: limit or len(alerts)]
+    limited = alerts[:limit]
     for a in limited:
         a.pop("_sort_key", None)
 
@@ -204,11 +207,16 @@ def get_business_alerts(limit: int = 10) -> dict:
 
 
 def format_business_alerts(data: dict) -> str:
+    # Structure contract: app.py::_parse_alerts regex-parses this output
+    # ("**Total Alerts:** N" and "### i. [Risk] Title" markers) — keep both.
     lines = ["## Business Alerts", "", f"**Total Alerts:** {data['total_alerts']}", ""]
 
     if not data["alerts"]:
         lines.append("_No urgent business alerts at this time._")
         return "\n".join(lines)
+
+    if data["total_alerts"] > len(data["alerts"]):
+        lines += [f"_Showing top {len(data['alerts'])} of {data['total_alerts']} alert(s)._", ""]
 
     for i, a in enumerate(data["alerts"], 1):
         lines.append(f"### {i}. [{a['risk_level']}] {a['title']}")

@@ -309,8 +309,8 @@ TOOL_SCHEMAS = [
             "name": "get_overdue_invoices",
             "description": (
                 "List all invoices that are past their due date, grouped by customer "
-                "and ranked by amount overdue. Takes no arguments. Use for 'overdue "
-                "invoices', 'which customers are past due', 'late payments'."
+                "and ranked by amount overdue. Accepts only an optional period filter. "
+                "Use for 'overdue invoices', 'which customers are past due', 'late payments'."
             ),
             "parameters": {
                 "type": "object",
@@ -360,6 +360,10 @@ TOOL_SCHEMAS = [
                     "year": {
                         "type": "integer",
                         "description": "Four-digit year, e.g. 2026.",
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "How many top products to return. Defaults to 5.",
                     },
                 },
                 "required": [],

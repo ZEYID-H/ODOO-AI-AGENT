@@ -1,6 +1,17 @@
 from src.data import provider
-from src.utils.date_filters import parse_date_range, filter_by_date
+from src.utils.date_filters import parse_date_range, filter_by_date, period_label
 from src.utils.formatting import fmt_currency, fmt_date, fmt_invoice_table, fmt_payment_table
+
+_DEFAULT_DEBTOR_LIMIT = 10
+
+
+def _normalize_limit(limit, default: int | None):
+    """An invalid limit (wrong type, zero, negative) falls back to the default
+    instead of silently slicing from the wrong end (list[:-1] drops the LAST
+    ranked row — the opposite of what any caller could mean)."""
+    if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+        return default
+    return limit
 
 
 def _find_customer(customer_name: str) -> dict | None:
@@ -15,10 +26,14 @@ def get_customer_balance(customer_name: str) -> dict:
     customer = _find_customer(customer_name)
     if not customer:
         return {"error": f"Customer '{customer_name}' not found."}
+    # Filter with the CANONICAL record name, never the raw argument: a padded
+    # input ("  apple mart  ") passes the (stripping) lookup but would match
+    # zero invoices — reporting a silently wrong zero balance.
+    name = customer["name"]
 
     open_invoices = [
         inv for inv in provider.get_invoices()
-        if inv["customer_name"].upper() == customer_name.upper()
+        if inv["customer_name"].upper() == name.upper()
         and inv["status"] in ("unpaid", "overdue")
     ]
 
@@ -49,19 +64,20 @@ def get_customer_summary(customer_name: str) -> dict:
     customer = _find_customer(customer_name)
     if not customer:
         return {"error": f"Customer '{customer_name}' not found."}
+    name = customer["name"]
 
     all_invoices = [
         inv for inv in provider.get_invoices()
-        if inv["customer_name"].upper() == customer_name.upper()
+        if inv["customer_name"].upper() == name.upper()
     ]
     payments = [
         p for p in provider.get_payments()
-        if p["customer_name"].upper() == customer_name.upper()
+        if p["customer_name"].upper() == name.upper()
     ]
 
     total_billed = sum(inv["amount"] for inv in all_invoices)
     total_paid = sum(p["amount"] for p in payments)
-    balance_data = get_customer_balance(customer_name)
+    balance_data = get_customer_balance(name)
 
     return {
         "customer": customer,
@@ -79,10 +95,11 @@ def get_payment_history(customer_name: str) -> dict:
     customer = _find_customer(customer_name)
     if not customer:
         return {"error": f"Customer '{customer_name}' not found."}
+    name = customer["name"]
 
     payments = [
         p for p in provider.get_payments()
-        if p["customer_name"].upper() == customer_name.upper()
+        if p["customer_name"].upper() == name.upper()
     ]
     payments_sorted = sorted(payments, key=lambda p: p["date"], reverse=True)
     total_paid = sum(p["amount"] for p in payments_sorted)
@@ -96,6 +113,7 @@ def get_payment_history(customer_name: str) -> dict:
 
 
 def get_top_debtors(limit: int = 10, period: str | None = None) -> dict:
+    limit = _normalize_limit(limit, _DEFAULT_DEBTOR_LIMIT)
     open_invoices = [
         inv for inv in provider.get_invoices()
         if inv["status"] in ("unpaid", "overdue")
@@ -130,6 +148,7 @@ def get_top_debtors(limit: int = 10, period: str | None = None) -> dict:
         "customer_count": len(debtors),
         "total_outstanding": sum(d["outstanding_balance"] for d in debtors),
         "limit": limit,
+        "period_label": period_label(period),
     }
 
 
@@ -289,12 +308,18 @@ def format_top_debtors(data: dict) -> str:
         return f"**Error:** {data['error']}"
 
     debtors = data["debtors"]
+    label = data.get("period_label")
+    title = f"## Top Debtors ({label})" if label else "## Top Debtors"
     lines = [
-        "## Top Debtors",
+        title,
         "",
         f"**Customers with balance:** {data['customer_count']} | "
         f"**Total Outstanding:** {fmt_currency(data['total_outstanding'])}",
         "",
+    ]
+    if data["customer_count"] > len(debtors):
+        lines += [f"_Showing top {len(debtors)} of {data['customer_count']} customer(s)._", ""]
+    lines += [
         "| Rank | Customer | Outstanding Balance | Overdue Amount | Open Invoices | Oldest Due Date |",
         "|------|----------|---------------------|----------------|---------------|-----------------|",
     ]

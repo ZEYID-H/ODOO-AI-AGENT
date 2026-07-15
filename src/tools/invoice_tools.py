@@ -1,9 +1,25 @@
 from src.data import provider
-from src.utils.date_filters import filter_by_date
+from src.utils.date_filters import filter_by_date, period_label
 from src.utils.formatting import fmt_currency, fmt_date, fmt_invoice_table, days_overdue
+
+# One customer-matching rule for the whole toolset (case-insensitive exact
+# match, owned by customer_tools). Reused here so an unknown name fails the
+# same way it does for balance/summary/statement instead of silently
+# succeeding with zero rows.
+from src.tools.customer_tools import _find_customer
 
 
 def get_unpaid_invoices(customer_name: str | None = None, period: str | None = None) -> dict:
+    # Whitespace-only == omitted (the schema documents "omit to list all
+    # customers"); a NON-empty unknown name is an error, never a silent
+    # zero-row result or an all-customers broadening.
+    customer_name = customer_name.strip() if customer_name else None
+    if customer_name:
+        customer = _find_customer(customer_name)
+        if not customer:
+            return {"error": f"Customer '{customer_name}' not found."}
+        customer_name = customer["name"]
+
     invoices = [
         inv for inv in provider.get_invoices()
         if inv["status"] in ("unpaid", "overdue")
@@ -23,6 +39,7 @@ def get_unpaid_invoices(customer_name: str | None = None, period: str | None = N
         "invoices": invoices_sorted,
         "count": len(invoices_sorted),
         "total_amount": total_amount,
+        "period_label": period_label(period),
     }
 
 
@@ -55,14 +72,26 @@ def get_overdue_invoices(period: str | None = None) -> dict:
         "total_amount": total_amount,
         "customers_affected": len(by_customer),
         "by_customer": customer_totals,
+        "period_label": period_label(period),
     }
 
 
 # ── Response Formatters ──────────────────────────────────────────────────────
 
+def _scope_suffix(data: dict) -> str:
+    label = data.get("period_label")
+    return f" ({label})" if label else ""
+
+
 def format_unpaid_invoices(data: dict) -> str:
+    if "error" in data:
+        return f"**Error:** {data['error']}"
+
     scope = f"**{data['customer_name']}**" if data["customer_name"] else "All Customers"
-    header = f"## Unpaid Invoices – {scope}"
+    header = f"## Unpaid Invoices – {scope}{_scope_suffix(data)}"
+
+    if not data["invoices"]:
+        return f"{header}\n\n_No unpaid invoices found._"
 
     lines = [
         header,
@@ -71,15 +100,17 @@ def format_unpaid_invoices(data: dict) -> str:
         "",
         fmt_invoice_table(data["invoices"]),
     ]
-    if not data["invoices"]:
-        lines.append("\n_No unpaid invoices found._")
-
     return "\n".join(lines)
 
 
 def format_overdue_invoices(data: dict) -> str:
+    header = f"## Overdue Invoices – All Customers{_scope_suffix(data)}"
+
+    if not data["invoices"]:
+        return f"{header}\n\n_No overdue invoices found — all invoices are current._"
+
     lines = [
-        "## Overdue Invoices – All Customers",
+        header,
         "",
         f"**{data['count']}** overdue invoice(s) across **{data['customers_affected']}** customer(s) | "
         f"**Total Overdue: {fmt_currency(data['total_amount'])}**",

@@ -9,6 +9,15 @@ Every tool is **read-only**: it calls `src/data/provider.py`, which in Odoo
 mode reads through the single gateway (`src/services/odoo_service.py`), gated
 by `enforce_read_only()`. No tool can write to Odoo.
 
+**Contract rules (AG2):** normalization, error shapes, formatting, bounding,
+and traceability rules common to all tools are specified in
+`docs/AI_AGENT_TOOL_CONTRACTS.md` and enforced by `tests/contracts/`
+(95 offline tests). Highlights: unknown customer/product → `{"error": ...}` /
+`**Error:** …` (never a silent empty or broadened result); invalid `limit`
+values fall back to the tool's default; date-filtered results carry a
+`period_label`; detail tables cap at 50 rows with an explicit truncation note;
+all amounts display in one currency (`formatting.CURRENCY`, QAR).
+
 ---
 
 ### 1. `get_customer_balance(customer_name)`
@@ -50,7 +59,7 @@ exports (CSV/Excel) include every row.
 customer balances".
 **Returns:** `debtors` (ranked list: customer_name, outstanding_balance,
 overdue_amount, open_invoice_count, oldest_due_date), `customer_count`,
-`total_outstanding`, `limit`.
+`total_outstanding`, `limit`, `period_label` (set when a period filter applied).
 
 ### 6. `get_customer_insights(customer_name)`
 
@@ -82,8 +91,10 @@ Medium (≥1d or any overdue), Low (otherwise).
 and/or a natural-language date range (filters on `issue_date`).
 **Typical questions:** "Show unpaid invoices", "Unpaid invoices for Apple Mart
 this month".
-**Returns:** `customer_name` (filter used, if any), `invoices` (list),
-`count`, `total_amount`.
+**Returns:** `customer_name` (canonical name of the filter used, if any),
+`invoices` (list), `count`, `total_amount`, `period_label`.
+**Errors:** a non-empty unknown `customer_name` returns `{"error": ...}`
+(AG2); empty/whitespace-only names mean "all customers", per the schema.
 
 ### 9. `get_overdue_invoices(period=None)`
 
@@ -92,7 +103,7 @@ this month".
 due?".
 **Returns:** `invoices` (list), `count`, `total_amount`, `customers_affected`,
 `by_customer` (per-customer rollup with invoice_count, total_overdue,
-oldest_due).
+oldest_due), `period_label`.
 
 ### 10. `get_top_selling_products(period=None, month=None, year=None, limit=5)`
 
@@ -100,7 +111,9 @@ oldest_due).
 **Typical questions:** "Top selling products this month", "Best sellers last
 quarter".
 **Returns:** `products` (ranked list: product_name, category, total_revenue,
-total_qty, order_count), `period_label`, `total_revenue`, `total_transactions`.
+total_qty, order_count), `product_count` (total distinct products before the
+limit), `period_label`, `total_revenue`, `total_transactions`. The `limit`
+parameter (default 5) is exposed in the OpenAI schema as of AG2.
 
 ### 11. `get_product_insights(product_name)`
 
@@ -124,8 +137,9 @@ selling?", "Analyze product X".
 **Typical questions:** "Sales summary", "Sales this month", "Sales between
 2026-01-01 and 2026-03-31".
 **Returns:** `period_label`, `total_revenue`, `total_transactions`,
-`avg_transaction`, `by_customer` (top revenue customers), `by_product`
-(top revenue products, top 5).
+`avg_transaction`, `by_customer` (top 5 customers by revenue, AG2),
+`by_product` (top 5 products by revenue), `customer_count`, `product_count`
+(totals behind the top-5 slices).
 
 ### 13. `get_dashboard_summary()`
 

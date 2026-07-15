@@ -17,6 +17,7 @@ from datetime import date
 
 from src.data import mock_data
 from src.services import odoo_service
+from src.utils.formatting import CURRENCY
 
 # Page size for paginated Odoo reads. Pages are accumulated until a short page
 # is returned, so there is no upper bound on total records fetched per entity.
@@ -78,7 +79,10 @@ def _odoo_customers() -> list[dict]:
             "email": _text(r.get("email")),
             "phone": _text(r.get("phone")),
             "credit_limit": r.get("credit_limit") or 0.0,
-            "currency": "USD",
+            # Display currency tag, kept in lockstep with fmt_currency's
+            # prefix. Whether live Odoo invoices are genuinely in this
+            # currency is AG4's validation, not a formatting concern.
+            "currency": CURRENCY,
         }
         for r in rows
     ]
