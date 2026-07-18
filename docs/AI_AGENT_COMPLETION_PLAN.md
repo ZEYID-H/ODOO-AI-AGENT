@@ -385,6 +385,24 @@ every prior phase in this project's history.
 
 ### AG3 — Routing and Multi-Turn Reliability
 
+> **✅ Complete (2026-07-15).** Full record: `docs/AI_AGENT_ROUTING.md`.
+> Summary: every routing defect documented in AG1 is fixed — the hardcoded
+> fallback date constants are gone (all relative dates derive from
+> `date.today()` at call time), analytic phrasings are disambiguated by the
+> named entity's type, the unknown-customer broadening is guarded, the
+> fallback gained Arabic coverage for all 14 intents and now reads customers/
+> products through the provider (no longer mock-bound), and `SYSTEM_PROMPT`
+> gained explicit ROUTING RULES that fixed all three remaining live-path
+> failures (missed-payments terminology, follow-up resolution,
+> overdue-vs-collections arbitration). **Model-assisted evaluation: 72/72
+> executed cases pass (was 68/72), each previously-failing case verified 4/4
+> stable.** 98-test permanent regression suite added (`tests/routing/`);
+> 285 Python tests green. Tool schemas, outputs, business formulas, API
+> responses, `app.py`, `apps/api`, `apps/web` all unchanged. AG4 has **not**
+> been started. Known deliberate limitations (stateless fallback, static
+> NO_CUSTOMER_MSG examples) are documented with justification in
+> `docs/AI_AGENT_ROUTING.md` §5.
+
 - **Module owner:** `src/agent/router.py`, `src/agent/prompts.py`
 - **Goal:** fix routing defects AG1 found; handle ambiguous customer/product
   names safely; validate the lightweight-history mechanism's actual behavior

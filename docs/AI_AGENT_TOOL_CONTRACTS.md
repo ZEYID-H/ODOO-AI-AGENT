@@ -187,6 +187,10 @@ UIs (Streamlit sidebar badge; not embedded per-message).
 
 ## 13. Failures Deferred to AG3 (routing — none touched by AG2)
 
+> **AG3 UPDATE (2026-07-15):** every item below was fixed in AG3 — see
+> `docs/AI_AGENT_ROUTING.md` for root causes, fixes, and regression tests.
+> This list stands as the historical record of what AG2 handed over.
+
 1. Stale `_THIS_MONTH=6/_THIS_YEAR=2026` fallback constants (+"last quarter"
    silently becoming "this month" on the fallback path).
 2. `"how is X"` / `"tell me about X"` keyword mis-routing.

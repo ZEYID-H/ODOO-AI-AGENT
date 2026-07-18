@@ -49,7 +49,7 @@
     "prohibitedClaims": [],
     "expectedErrorBehavior": null,
     "dataMode": "mock",
-    "notes": "Arabic phrasing (\"How much does APPLE MART company owe us?\") with the customer name kept in Latin script, as a real bilingual user would type it. The rule-based fallback has NO Arabic keyword coverage (_detect_intent only matches English substrings) and returns intent=unknown even though _extract_customer still finds 'APPLE MART' via substring match — verified directly against src/agent/router.py::_rule_based_route(). This case measures the OpenAI path only; see GLOBAL-OPENAI-UNAVAIL-* for the deterministic rule-based-fallback evidence.",
+    "notes": "Arabic phrasing with the customer name in Latin script. AG3 UPDATE: the rule-based fallback now has Arabic keyword coverage for all 14 intents (tests/routing/test_ag3_regressions.py::test_arabic_intent_matrix_covers_all_14_tools), so this query resolves correctly on BOTH paths, not just via OpenAI.",
     "currentStatus": "PASS"
   },
   {
@@ -599,7 +599,7 @@
     "expectedErrorBehavior": null,
     "dataMode": "mock",
     "notes": "",
-    "currentStatus": "FAIL"
+    "currentStatus": "PASS"
   },
   {
     "id": "OV-AR-01",
@@ -1304,7 +1304,7 @@
     "prohibitedClaims": [],
     "expectedErrorBehavior": "APPLE MART is a customer, so a reasonable answer calls get_customer_insights. But the rule-based fallback's _detect_intent() checks the product_insights keyword list ('how is', 'is selling') BEFORE the customer_insights list, and 'how is' is a substring of this exact query — verified directly: _detect_intent('How is APPLE MART doing?') returns 'product_insights', not 'customer_insights'. The rule-based path then calls get_product_insights('APPLE MART') via best-effort text extraction, which returns a no_match error, because APPLE MART is a customer, not a product. This is a genuine routing defect in the fallback keyword table (owner: AG3, routing behavior) — confirmed by code reading and direct function calls, NOT fixed in this phase. The OpenAI path's actual behavior on this exact ambiguous phrasing is what this case measures for real.",
     "dataMode": "mock",
-    "notes": "Deterministic rule-based mis-route already proven; see docs/AI_AGENT_EVALUATION_BASELINE.md §8 for the exact command run.",
+    "notes": "AG3 UPDATE: FIXED on the rule-based path too. Entity-aware disambiguation (_resolve_analytic_ambiguity) routes analytic phrasings by the named entity's type: 'How is APPLE MART doing?' → get_customer_insights because APPLE MART is a known customer and matches no product. Regression: tests/evals/test_registry_coverage.py::test_how_is_a_customer_doing_routes_to_customer_insights.",
     "currentStatus": "PASS"
   },
   {
@@ -1328,7 +1328,7 @@
     "prohibitedClaims": [],
     "expectedErrorBehavior": "Fresh Apples is a product, so a reasonable answer calls get_product_insights. The rule-based fallback's customer_insights keyword list includes 'tell me about' and is checked BEFORE any product-specific 'tell me about' handling exists — verified directly: _detect_intent('Tell me about Fresh Apples') returns 'customer_insights'. Because 'Fresh Apples' is not in the known customer list, _extract_customer() finds nothing and _rule_based_route() returns NO_CUSTOMER_MSG without ever attempting a product lookup. Same class of defect as GLOBAL-AMBIG-01, mirrored in the opposite direction (owner: AG3). Not fixed in this phase.",
     "dataMode": "mock",
-    "notes": "Deterministic rule-based mis-route already proven; see docs/AI_AGENT_EVALUATION_BASELINE.md §8.",
+    "notes": "AG3 UPDATE: FIXED on the rule-based path too. 'Tell me about Fresh Apples' now flips to get_product_insights because Fresh Apples matches a known product and no customer. Regression: tests/evals/test_registry_coverage.py::test_tell_me_about_a_product_routes_to_product_insights.",
     "currentStatus": "PASS"
   },
   {
@@ -1403,8 +1403,8 @@
     "prohibitedClaims": [],
     "expectedErrorBehavior": null,
     "dataMode": "mock",
-    "notes": "History is already in the lightweight {role, content} shape with the tool-output collapsed to a short note — exactly what apps/web/lib/history.ts::buildLightweightHistory and apps/api/main.py::filter_history both produce. The rule-based fallback CANNOT use history at all (_rule_based_route(query) takes no history argument) — verified by its signature — so this case only has a chance of passing on the OpenAI path, which does receive history via _build_messages().",
-    "currentStatus": "FAIL"
+    "notes": "AG3 UPDATE: FIXED on the live path (was a stable AG1/AG2 FAIL — the model re-answered the previous balance question). SYSTEM_PROMPT now carries explicit follow-up-resolution guidance with this exact scenario as its example; passes 4/4 post-AG3. The rule-based fallback remains stateless by design (documented limitation, docs/AI_AGENT_ROUTING.md).",
+    "currentStatus": "PASS"
   },
   {
     "id": "GLOBAL-FOLLOWUP-02",
@@ -1457,7 +1457,7 @@
     "prohibitedClaims": [],
     "expectedErrorBehavior": "KNOWN ISSUE — documented, not fixed in AG1. src/agent/router.py hardcodes _THIS_MONTH=6, _THIS_YEAR=2026 (lines 51-52). _extract_period() special-cases 'last month' as (_THIS_MONTH-1, _THIS_YEAR) = (5, 2026) unconditionally — verified by direct call: _extract_period('Top selling products last month') returns (5, 2026) regardless of the real current date. This is correct only for as long as the real 'last month' happens to be May 2026; the rule-based fallback path silently drifts out of date every month thereafter. The OpenAI path is unaffected (src/services/openai_service.py computes CURRENT_DATE dynamically via date.today()).",
     "dataMode": "mock",
-    "notes": "Owner of the eventual fix: AG3 (routing behavior). This case's currentStatus reflects the live OpenAI-path measurement only (the active path whenever OPENAI_API_KEY is set) — the rule-based fallback defect this case documents is proven separately and deterministically in tests/evals/test_registry_coverage.py against src.agent.router._rule_based_route() directly, independent of this dataset's currentStatus field.",
+    "notes": "AG3 UPDATE: FIXED. The hardcoded _THIS_MONTH/_THIS_YEAR constants were removed from src/agent/router.py — all relative dates now resolve from date.today() at call time on both paths. Regression tests: tests/routing/test_ag3_regressions.py (dynamic-date family) and tests/evals/test_registry_coverage.py::test_fallback_this_month_resolves_to_the_real_current_month.",
     "currentStatus": "PASS"
   },
   {
@@ -1495,8 +1495,8 @@
     "prohibitedClaims": [],
     "expectedErrorBehavior": null,
     "dataMode": "mock",
-    "notes": "'missed payment' phrasing; also a matched rule-based keyword for overdue_invoices.",
-    "currentStatus": "FAIL"
+    "notes": "AG3 UPDATE: FIXED on the live path (was a stable AG1/AG2 FAIL routing to get_business_alerts). SYSTEM_PROMPT's routing rules now direct missed/late/past-due payment questions to get_overdue_invoices; passes 4/4 post-AG3. The rule-based keyword 'missed payment' was already correct.",
+    "currentStatus": "PASS"
   },
   {
     "id": "GLOBAL-PLURAL-01",
@@ -1646,8 +1646,8 @@
     "prohibitedClaims": [],
     "expectedErrorBehavior": null,
     "dataMode": "mock",
-    "notes": "Rule-based-fallback proof for a no-customer-required tool. Verified via direct _rule_based_route() call.",
-    "currentStatus": "FAIL"
+    "notes": "Rule-based-fallback proof for a no-customer-required tool (verified via direct _rule_based_route() call). AG3 UPDATE: the live-path ambiguity between get_overdue_invoices and get_collection_priorities for this phrasing (a borderline AG1/AG2 FAIL) is resolved by SYSTEM_PROMPT's routing rules; passes 4/4 post-AG3.",
+    "currentStatus": "PASS"
   },
   {
     "id": "GLOBAL-OPENAI-UNAVAIL-03",

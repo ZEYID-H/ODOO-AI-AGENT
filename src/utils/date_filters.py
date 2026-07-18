@@ -20,6 +20,8 @@ _ISO_RANGE = re.compile(
     r"(\d{4}-\d{2}-\d{2})\s*(?:and|to|until|through|-)\s*(\d{4}-\d{2}-\d{2})"
 )
 _MONTH_RANGE = re.compile(r"from\s+([a-z]+)\s+to\s+([a-z]+)")
+# "last 30 days", "past 90 days" — a rolling window ending today.
+_LAST_N_DAYS = re.compile(r"\b(?:last|past)\s+(\d{1,3})\s+days?\b")
 # "June 2025" / "june, 2025" — an explicit year next to a month name. Checked
 # before the bare-month fallback, which would otherwise silently substitute
 # the CURRENT year for the one the user actually asked about.
@@ -59,6 +61,14 @@ def parse_date_range(text: str, today: date | None = None) -> tuple[str | None, 
         _, end = _month_span(y, _MONTHS[m.group(2)])
         return (start, end)
 
+    # "last 30 days" — checked before "today"/"yesterday" because the phrase
+    # never contains those words, but before month names ("last 30 days of
+    # march" is not a supported phrase and should resolve as the window).
+    m = _LAST_N_DAYS.search(t)
+    if m:
+        n = int(m.group(1))
+        return (_iso(today - timedelta(days=n)), _iso(today))
+
     if "today" in t:
         return (_iso(today), _iso(today))
     if "yesterday" in t:
@@ -72,18 +82,25 @@ def parse_date_range(text: str, today: date | None = None) -> tuple[str | None, 
         start = today - timedelta(days=today.weekday() + 7)
         return (_iso(start), _iso(start + timedelta(days=6)))
 
-    if "this month" in t:
+    # "month to date" before the generic month branches: it contains no month
+    # word but "year to date" must also win over a stray month name.
+    if "month to date" in t or re.search(r"\bmtd\b", t):
+        return (_iso(date(today.year, today.month, 1)), _iso(today))
+    if "year to date" in t or re.search(r"\bytd\b", t):
+        return (_iso(date(today.year, 1, 1)), _iso(today))
+
+    if "this month" in t or "current month" in t:
         return _month_span(today.year, today.month)
-    if "last month" in t:
+    if "last month" in t or "previous month" in t:
         y, mth = (today.year, today.month - 1) if today.month > 1 else (today.year - 1, 12)
         return _month_span(y, mth)
 
-    if "this quarter" in t:
+    if "this quarter" in t or "current quarter" in t:
         sm = ((today.month - 1) // 3) * 3 + 1
         start, _ = _month_span(today.year, sm)
         _, end = _month_span(today.year, sm + 2)
         return (start, end)
-    if "last quarter" in t:
+    if "last quarter" in t or "previous quarter" in t:
         sm = ((today.month - 1) // 3) * 3 + 1 - 3
         y = today.year
         if sm <= 0:
@@ -93,9 +110,9 @@ def parse_date_range(text: str, today: date | None = None) -> tuple[str | None, 
         _, end = _month_span(y, sm + 2)
         return (start, end)
 
-    if "this year" in t:
+    if "this year" in t or "current year" in t:
         return (_iso(date(today.year, 1, 1)), _iso(date(today.year, 12, 31)))
-    if "last year" in t:
+    if "last year" in t or "previous year" in t:
         return (_iso(date(today.year - 1, 1, 1)), _iso(date(today.year - 1, 12, 31)))
 
     # Month name with an explicit year, e.g. "June 2025" — honor that year.

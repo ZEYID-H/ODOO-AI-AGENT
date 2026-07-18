@@ -1,5 +1,18 @@
 # AI Agent Evaluation Baseline — AG1
 
+> **Post-AG3 comparison (2026-07-15) — current state.** After AG3's routing
+> hardening (`docs/AI_AGENT_ROUTING.md`), the model-assisted suite scores
+> **72/72 executed cases — zero routing failures** (75 total: 2 HTTP-contract
+> cross-references and 1 live-Odoo placeholder remain deliberately
+> unexecuted). All three stable AG1 failures — `GLOBAL-FOLLOWUP-01`,
+> `GLOBAL-TERM-02`, `GLOBAL-OPENAI-UNAVAIL-02` — now pass, each re-verified
+> 4/4 in isolated re-runs. The AG1 Layer A defect-evidence tests were
+> rewritten as fixed-behavior regression tests, and a 98-test permanent
+> routing suite was added (`tests/routing/test_ag3_regressions.py`). The AG1
+> sections below remain as the historical record of what was originally
+> measured; `agent_cases.json`'s `currentStatus` fields reflect the post-AG3
+> run (74 PASS, 1 BLOCKED).
+
 > **Post-AG2 comparison (2026-07-15).** The full model-assisted suite was
 > re-run after AG2's contract/formatter fixes, same model (`gpt-5.4-mini`),
 > same probe-substituted harness: **68/72 executed cases passed — equal to
