@@ -158,12 +158,17 @@ def _assert_period_scoped_to(actual, spec, key, params):
     expected_month, expected_year = spec["month"], spec["year"]
     period = params.get("period")
     if isinstance(period, str) and period.strip():
+        import re as _re
         year_ok = str(expected_year) in period
         month_name = _MONTH_NAMES[expected_month]
         month_ok = (
             month_name in period.lower()
             or f"-{expected_month:02d}-" in period
             or f"/{expected_month:02d}/" in period
+            # Bare "YYYY-MM" / "YYYY-M" (e.g. "2026-06") — a valid, unambiguous
+            # way to reference the month; accepted since the AG3.5 freeze run
+            # showed the model legitimately emits it.
+            or bool(_re.search(rf"{expected_year}-0?{expected_month}(?!\d)", period))
         )
         ok = year_ok and month_ok
         return ok, f"period={period!r} should reference {month_name} {expected_year}"
