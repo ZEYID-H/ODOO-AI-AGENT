@@ -434,6 +434,19 @@ every prior phase in this project's history.
 
 ### AG4 — Live Odoo Data Accuracy Validation
 
+> **⛔ BLOCKED — awaiting live Odoo access (2026-07-16).** Full record:
+> `docs/AG4_LIVE_ODOO_VALIDATION.md`. The configured Odoo Online instance no
+> longer exists — every endpoint including `/web/login` returns 404 (expired/
+> deleted trial database). All safe preparation work is complete: the opt-in
+> live validation harness (`tests/live_odoo/`, 26 cases, `live_odoo` marker,
+> RUN_LIVE_ODOO=1 gate, independent reference calculations incl. a
+> receivable-ledger cross-check), the canonical 14-tool validation inventory,
+> the as-implemented accounting-decision record, and four pre-identified
+> candidate discrepancies (AG4-Q1…Q4) encoded as live assertions. **No tool
+> is claimed PASS.** To unblock: provision a reachable Odoo instance with the
+> dedicated read-only user, update `.env`, then
+> `RUN_LIVE_ODOO=1 python -m pytest tests/live_odoo -v`. AG5 has not started.
+
 - **Module owner:** `src/services/odoo_service.py`, `src/data/provider.py`
   (read-only validation against them — no changes expected unless a proven
   normalization defect is found)
