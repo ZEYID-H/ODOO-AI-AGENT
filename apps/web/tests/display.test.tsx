@@ -2,19 +2,20 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
-// Sidebar imports logoutAction, which pulls in the real auth.ts -> next-auth
-// module graph. These tests only exercise UI wiring, not Auth.js itself, so
-// it's mocked out here the same way @/lib/api is mocked in DashboardPage
-// tests — isolating the unit under test from an unrelated real dependency.
+// ConversationSidebar imports logoutAction, which pulls in the real auth.ts
+// -> next-auth module graph. These tests exercise UI wiring, not Auth.js, so
+// it's mocked out here.
 vi.mock("@/app/actions/auth", () => ({
   loginAction: vi.fn(),
   logoutAction: vi.fn(),
 }));
 
-import Sidebar from "../components/Sidebar";
-import TopBar from "../components/TopBar";
+import DataSourceStatus from "../components/DataSourceStatus";
+import WorkspaceHeader from "../components/WorkspaceHeader";
+import ConversationSidebar from "../components/ConversationSidebar";
 
-const conversationProps = {
+const sidebarProps = {
+  toolCount: 14 as number | null,
   conversations: [],
   activeId: null,
   onSelectConversation: vi.fn(),
@@ -23,140 +24,146 @@ const conversationProps = {
   onDeleteConversation: vi.fn(),
 };
 
-describe("TopBar — connection status display", () => {
-  it("shows a checking indicator while the health check is in flight", () => {
-    render(<TopBar status="checking" />);
-    expect(screen.getByText("Checking API…")).toBeInTheDocument();
+describe("DataSourceStatus — honest connection state", () => {
+  it("shows a connecting state while the health check is in flight", () => {
+    render(<DataSourceStatus status="checking" />);
+    expect(screen.getByText("Connecting")).toBeInTheDocument();
   });
 
-  it("shows connected once /health has resolved", () => {
-    render(<TopBar status="online" />);
-    expect(screen.getByText("API Connected")).toBeInTheDocument();
+  it("shows demo-data (never a live-Odoo claim) when online on the mock backend", () => {
+    render(<DataSourceStatus status="online" />);
+    expect(screen.getByText("Demo data")).toBeInTheDocument();
+    // The core honesty guarantee: mock mode must never read as live Odoo.
+    expect(screen.queryByText("Connected to Odoo")).not.toBeInTheDocument();
   });
 
-  it("shows unreachable if /health failed", () => {
-    render(<TopBar status="offline" />);
-    expect(screen.getByText("API Unreachable")).toBeInTheDocument();
-  });
-});
-
-describe("Sidebar — connection + tool count display", () => {
-  it("shows a placeholder while backend/tool count are unknown", () => {
-    render(
-      <Sidebar status="checking" toolCount={null} onAsk={vi.fn()} {...conversationProps} />
-    );
-    // Backend badge and tool count both render their "unknown" placeholder.
-    expect(screen.getAllByText("…").length).toBeGreaterThanOrEqual(1);
+  it("shows service-unavailable when the API can't be reached", () => {
+    render(<DataSourceStatus status="offline" />);
+    expect(screen.getByText("Service unavailable")).toBeInTheDocument();
   });
 
-  it("shows CONNECTED and the live tool count once both calls resolve", () => {
-    render(
-      <Sidebar status="online" toolCount={14} onAsk={vi.fn()} {...conversationProps} />
-    );
-    expect(screen.getByText("CONNECTED")).toBeInTheDocument();
-    expect(screen.getByText("14")).toBeInTheDocument();
-  });
-
-  it("shows OFFLINE when the backend is unreachable", () => {
-    render(
-      <Sidebar status="offline" toolCount={null} onAsk={vi.fn()} {...conversationProps} />
-    );
-    expect(screen.getByText("OFFLINE")).toBeInTheDocument();
-  });
-
-  it("invokes onAsk with the quick action's question when clicked", () => {
-    const onAsk = vi.fn();
-    render(
-      <Sidebar status="online" toolCount={14} onAsk={onAsk} {...conversationProps} />
-    );
-    fireEvent.click(screen.getByText(/Business Alerts/));
-    expect(onAsk).toHaveBeenCalledWith("Show business alerts");
-  });
-
-  it("disables quick-question buttons while a request is in flight", () => {
-    render(
-      <Sidebar
-        status="online"
-        toolCount={14}
-        onAsk={vi.fn()}
-        {...conversationProps}
-        disabled
-      />
-    );
-    const button = screen.getByText(/Business Alerts/).closest("button");
-    expect(button).toBeDisabled();
+  it("conveys state with a role and text, not color alone", () => {
+    render(<DataSourceStatus status="offline" />);
+    // role=status is present and carries readable text.
+    expect(screen.getByRole("status")).toHaveTextContent("Service unavailable");
   });
 });
 
-describe("Sidebar — conversation list wiring", () => {
+describe("WorkspaceHeader", () => {
+  it("renders the current conversation title and the data-source status", () => {
+    render(
+      <WorkspaceHeader title="Q2 receivables" status="online" onOpenNav={vi.fn()} />
+    );
+    expect(screen.getByRole("heading", { name: "Q2 receivables" })).toBeInTheDocument();
+    expect(screen.getByText("Demo data")).toBeInTheDocument();
+  });
+
+  it("exposes an accessible mobile navigation trigger that fires onOpenNav", () => {
+    const onOpenNav = vi.fn();
+    render(<WorkspaceHeader title="Chat" status="online" onOpenNav={onOpenNav} />);
+    fireEvent.click(screen.getByRole("button", { name: "Open navigation" }));
+    expect(onOpenNav).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ConversationSidebar — history + actions", () => {
   const conversations = [
     { id: "c1", title: "First chat", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
     { id: "c2", title: "Second chat", createdAt: "2026-01-02T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z" },
   ];
 
-  it("renders each conversation and invokes onSelectConversation when clicked", () => {
+  it("shows the tool-capability count once known", () => {
+    render(<ConversationSidebar {...sidebarProps} toolCount={14} />);
+    expect(screen.getByText("14")).toBeInTheDocument();
+    expect(screen.getByText("tools available")).toBeInTheDocument();
+  });
+
+  it("renders each conversation and selects on click", () => {
     const onSelectConversation = vi.fn();
     render(
-      <Sidebar
-        status="online"
-        toolCount={14}
-        onAsk={vi.fn()}
-        {...conversationProps}
+      <ConversationSidebar
+        {...sidebarProps}
         conversations={conversations}
         activeId="c1"
         onSelectConversation={onSelectConversation}
       />
     );
     expect(screen.getByText("First chat")).toBeInTheDocument();
-    expect(screen.getByText("Second chat")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Second chat"));
     expect(onSelectConversation).toHaveBeenCalledWith("c2");
   });
 
-  it("marks the active conversation with aria-current, not color alone (Phase 9 audit fix)", () => {
+  it("marks the active conversation with aria-current, not color alone", () => {
     render(
-      <Sidebar
-        status="online"
-        toolCount={14}
-        onAsk={vi.fn()}
-        {...conversationProps}
-        conversations={conversations}
-        activeId="c1"
-      />
+      <ConversationSidebar {...sidebarProps} conversations={conversations} activeId="c1" />
     );
     expect(screen.getByText("First chat")).toHaveAttribute("aria-current", "true");
     expect(screen.getByText("Second chat")).not.toHaveAttribute("aria-current");
   });
 
-  it("exposes accessible labels for the rename/delete icon-only buttons", () => {
+  it("exposes accessible labels for the rename/delete icon buttons", () => {
     render(
-      <Sidebar
-        status="online"
-        toolCount={14}
-        onAsk={vi.fn()}
-        {...conversationProps}
-        conversations={conversations}
-        activeId="c1"
-      />
+      <ConversationSidebar {...sidebarProps} conversations={conversations} activeId="c1" />
     );
     expect(screen.getByLabelText("Rename First chat")).toBeInTheDocument();
     expect(screen.getByLabelText("Delete First chat")).toBeInTheDocument();
   });
 
-  it("invokes onNewConversation when New Chat is clicked", () => {
+  it("fires onNewConversation from the New conversation action", () => {
     const onNewConversation = vi.fn();
+    render(<ConversationSidebar {...sidebarProps} onNewConversation={onNewConversation} />);
+    fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
+    expect(onNewConversation).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT duplicate quick-question shortcuts in the sidebar (AG5A)", () => {
+    render(<ConversationSidebar {...sidebarProps} conversations={conversations} activeId="c1" />);
+    expect(screen.queryByText(/Business Alerts/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Quick Questions/)).not.toBeInTheDocument();
+  });
+});
+
+describe("ConversationSidebar — collapse", () => {
+  it("offers a labelled collapse toggle that reports expanded state and fires", () => {
+    const onToggleCollapse = vi.fn();
     render(
-      <Sidebar
-        status="online"
-        toolCount={14}
-        onAsk={vi.fn()}
-        {...conversationProps}
-        conversations={conversations}
-        activeId="c1"
-        onNewConversation={onNewConversation}
+      <ConversationSidebar
+        {...sidebarProps}
+        collapsed={false}
+        onToggleCollapse={onToggleCollapse}
       />
     );
-    fireEvent.click(screen.getByText(/New Chat/));
-    expect(onNewConversation).toHaveBeenCalledTimes(1);
+    const toggle = screen.getByRole("button", { name: "Collapse sidebar" });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(toggle);
+    expect(onToggleCollapse).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides labels and history when collapsed", () => {
+    render(
+      <ConversationSidebar
+        {...sidebarProps}
+        conversations={[
+          { id: "c1", title: "First chat", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" },
+        ]}
+        activeId="c1"
+        collapsed
+        onToggleCollapse={vi.fn()}
+      />
+    );
+    expect(screen.getByRole("button", { name: "Expand sidebar" })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+    expect(screen.queryByText("First chat")).not.toBeInTheDocument();
+    expect(screen.queryByText("tools available")).not.toBeInTheDocument();
+  });
+
+  it("shows a Close control (not a collapse toggle) in drawer mode", () => {
+    const onClose = vi.fn();
+    render(<ConversationSidebar {...sidebarProps} onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Close navigation" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Collapse sidebar" })).not.toBeInTheDocument();
   });
 });

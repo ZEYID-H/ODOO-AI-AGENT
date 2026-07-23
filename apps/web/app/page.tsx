@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Check } from "lucide-react";
 import { auth } from "@/auth";
 import { ROLE_HOME } from "@/lib/session-guard";
 
-const BADGES = ["Read Only", "Secure", "Odoo Connected", "GPT Powered"];
+// Honest badges only: the app runs on bundled demo data while live-Odoo
+// validation (AG4) is blocked — it must not claim "Odoo Connected" here.
+const BADGES = ["Read only", "Secure", "Demo data", "AI powered"];
 
 export default async function Home() {
   // Signed-in users land straight on their role's home (Delivery D1) —
@@ -19,7 +22,7 @@ export default async function Home() {
       <div className="max-w-xl w-full text-center space-y-6">
         <div>
           <h1 className="text-3xl font-semibold text-ink">
-            Odoo Business Intelligence Assistant
+            Odoo BI Assistant
           </h1>
           <p className="mt-2 text-ink-dim">
             Read-only AI assistant for business analytics and reporting
@@ -30,9 +33,10 @@ export default async function Home() {
           {BADGES.map((b) => (
             <span
               key={b}
-              className="text-xs px-3 py-1 rounded-full border border-line bg-surface-2 text-ink-dim"
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full border border-line bg-surface-2 text-ink-dim"
             >
-              ✅ {b}
+              <Check aria-hidden className="h-3 w-3 text-accent" />
+              {b}
             </span>
           ))}
         </div>

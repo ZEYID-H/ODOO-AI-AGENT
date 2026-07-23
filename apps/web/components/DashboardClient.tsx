@@ -1,13 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Sidebar from "@/components/Sidebar";
-import TopBar, { type ConnectionStatus } from "@/components/TopBar";
-import ChatInput from "@/components/ChatInput";
-import ResponseCard from "@/components/ResponseCard";
-import EmptyState from "@/components/EmptyState";
+import { useEffect, useMemo, useState } from "react";
+import ConversationSidebar from "@/components/ConversationSidebar";
+import MobileSidebarDrawer from "@/components/MobileSidebarDrawer";
+import WorkspaceHeader from "@/components/WorkspaceHeader";
+import MessageList from "@/components/MessageList";
+import EmptyConversation from "@/components/EmptyConversation";
+import ChatComposer from "@/components/ChatComposer";
 import { getHealth, listTools, chat, ApiError } from "@/lib/api";
-import { buildLightweightHistory, type ChatTurn } from "@/lib/history";
+import type { ConnectionStatus } from "@/lib/data-source";
+import {
+  buildLightweightHistory,
+  type ChatTurn,
+  type HistoryMessage,
+} from "@/lib/history";
 import {
   createConversation,
   loadConversation,
@@ -22,11 +28,7 @@ function toTurns(messages: PersistedMessage[]): ChatTurn[] {
   return messages.map((m) => ({ id: m.id, role: m.role, content: m.content }));
 }
 
-/** Stable id for a freshly-added turn (not yet persisted / no db id yet).
- * Previously ResponseCard was keyed on array index (Phase 9 audit finding:
- * a recognized React anti-pattern) even though a real id was available for
- * every reloaded message — this closes the gap for locally-created turns
- * too, so every turn has a real, stable key regardless of origin. */
+/** Stable id for a freshly-added turn (not yet persisted / no db id yet). */
 function newTurnId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -41,10 +43,8 @@ function touchConversation(
   title?: string
 ): ConversationSummary[] {
   const now = new Date().toISOString();
-  const touched = list.map((c) =>
-    c.id === id ? { ...c, title: title ?? c.title, updatedAt: now } : c
-  );
-  return touched
+  return list
+    .map((c) => (c.id === id ? { ...c, title: title ?? c.title, updatedAt: now } : c))
     .slice()
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 }
@@ -65,6 +65,8 @@ export default function DashboardClient({
   const [turns, setTurns] = useState<ChatTurn[]>(() => toTurns(initialMessages));
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   // Required: the frontend calls /health and /tools on load, and /chat on
   // every question — all three FastAPI endpoints, no tool logic duplicated.
@@ -78,29 +80,41 @@ export default function DashboardClient({
       .catch(() => setToolCount(null));
   }, []);
 
-  async function handleAsk(query: string) {
-    // Guards against both a double-submit race (rapid double-click/Enter
-    // before the disabled prop re-renders) and an empty/whitespace-only
-    // message reaching the API, independent of ChatInput's own check.
+  const activeTitle = useMemo(
+    () => conversations.find((c) => c.id === activeId)?.title ?? "New conversation",
+    [conversations, activeId]
+  );
+
+  const disabled = loading || switching;
+
+  /** Core send path. `baseTurns` is the history the request is built from —
+   * the current thread for a normal ask, or the thread with the failed
+   * exchange dropped for a retry. Explicit (not a functional setState) so the
+   * history sent to the API is exactly the pre-request thread, with no race. */
+  async function sendQuery(query: string, baseTurns: ChatTurn[]) {
     const trimmed = query.trim();
     if (loading || switching || !trimmed) return;
 
-    const history = buildLightweightHistory(turns);
-    setTurns((prev) => [...prev, { id: newTurnId(), role: "user", content: trimmed }]);
+    const history: HistoryMessage[] = buildLightweightHistory(baseTurns);
+    const withUser: ChatTurn[] = [
+      ...baseTurns,
+      { id: newTurnId(), role: "user", content: trimmed },
+    ];
+    setTurns(withUser);
     setLoading(true);
+
     try {
       const response = await chat(trimmed, history);
-      setTurns((prev) => [
-        ...prev,
+      setTurns([
+        ...withUser,
         response.success
           ? { id: newTurnId(), role: "assistant", content: response.result, tool: response.tool }
           : { id: newTurnId(), role: "assistant", content: response.result, tool: null, isError: true },
       ]);
 
-      // Persist both turns of a completed round trip — including a
-      // success:false answer (still a real assistant reply, just styled as
-      // an error). A thrown ApiError below is a transient network failure,
-      // not a conversation turn, so it's deliberately never persisted.
+      // Persist a completed round trip (including a success:false answer — a
+      // real assistant reply). A thrown ApiError below is a transient network
+      // failure, not a turn, so it is deliberately never persisted.
       try {
         await Promise.all([
           appendMessage(activeId, "user", trimmed),
@@ -113,17 +127,39 @@ export default function DashboardClient({
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : "Unexpected error contacting the API.";
-      setTurns((prev) => [
-        ...prev,
-        { id: newTurnId(), role: "assistant", content: message, tool: null, isError: true },
+      setTurns([
+        ...withUser,
+        {
+          id: newTurnId(),
+          role: "assistant",
+          content: message,
+          tool: null,
+          isError: true,
+          retryQuery: trimmed,
+        },
       ]);
     } finally {
       setLoading(false);
     }
   }
 
+  function handleAsk(query: string) {
+    void sendQuery(query, turns);
+  }
+
+  /** Re-send a failed question: drop the trailing error turn and the user
+   * turn that produced it (neither was persisted), then send fresh so the
+   * history and persistence are exactly as if the failure never happened. */
+  function handleRetry(query: string) {
+    let base = turns.slice();
+    if (base.length && base[base.length - 1].isError) base.pop();
+    if (base.length && base[base.length - 1].role === "user") base.pop();
+    void sendQuery(query, base);
+  }
+
   async function handleNew() {
-    if (loading || switching) return;
+    if (disabled) return;
+    setMobileNavOpen(false);
     setSwitching(true);
     try {
       const conv = await createConversation();
@@ -138,7 +174,8 @@ export default function DashboardClient({
   }
 
   async function handleSelect(id: string) {
-    if (id === activeId || loading || switching) return;
+    setMobileNavOpen(false);
+    if (id === activeId || disabled) return;
     setSwitching(true);
     try {
       const conv = await loadConversation(id);
@@ -200,40 +237,57 @@ export default function DashboardClient({
     }
   }
 
-  const disabled = loading || switching;
+  const sidebarProps = {
+    toolCount,
+    conversations,
+    activeId,
+    onSelectConversation: handleSelect,
+    onNewConversation: handleNew,
+    onRenameConversation: handleRename,
+    onDeleteConversation: handleDelete,
+    disabled,
+  };
 
   return (
-    <div className="flex h-screen">
-      <Sidebar
-        status={status}
-        toolCount={toolCount}
-        onAsk={handleAsk}
-        disabled={disabled}
-        conversations={conversations}
-        activeId={activeId}
-        onSelectConversation={handleSelect}
-        onNewConversation={handleNew}
-        onRenameConversation={handleRename}
-        onDeleteConversation={handleDelete}
-      />
+    <div className="flex h-dvh overflow-hidden bg-surface text-ink">
+      {/* Desktop rail — collapsible */}
+      <aside
+        className={`hidden shrink-0 border-e border-line transition-[width] duration-200 md:block ${
+          collapsed ? "w-16" : "w-72"
+        }`}
+      >
+        <ConversationSidebar
+          {...sidebarProps}
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed((c) => !c)}
+        />
+      </aside>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <TopBar status={status} />
+      {/* Mobile drawer */}
+      <MobileSidebarDrawer open={mobileNavOpen} onClose={() => setMobileNavOpen(false)}>
+        <ConversationSidebar {...sidebarProps} onClose={() => setMobileNavOpen(false)} />
+      </MobileSidebarDrawer>
 
-        <main className="flex-1 overflow-y-auto px-6 py-6 space-y-4">
+      {/* Workspace */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <WorkspaceHeader
+          title={activeTitle}
+          status={status}
+          onOpenNav={() => setMobileNavOpen(true)}
+        />
+
+        <main className="flex min-h-0 flex-1 flex-col">
           {turns.length === 0 ? (
-            <EmptyState onAsk={handleAsk} disabled={disabled} />
+            <div className="scroll-region min-h-0 flex-1 overflow-y-auto">
+              <EmptyConversation onSelect={handleAsk} disabled={disabled} />
+            </div>
           ) : (
-            turns.map((turn, i) => <ResponseCard key={turn.id ?? i} turn={turn} />)
-          )}
-
-          {loading && (
-            <div className="text-sm text-ink-dim animate-pulse">Thinking…</div>
+            <MessageList turns={turns} loading={loading} onRetry={handleRetry} />
           )}
         </main>
 
-        <div className="border-t border-line px-6 py-4">
-          <ChatInput onSubmit={handleAsk} disabled={disabled} />
+        <div className="border-t border-line px-3 py-3 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))]">
+          <ChatComposer onSubmit={handleAsk} disabled={disabled} busy={loading} />
         </div>
       </div>
     </div>

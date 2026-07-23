@@ -82,9 +82,9 @@ describe("DashboardClient — load", () => {
   it("shows the empty state with quick actions once the backend is reachable", async () => {
     setupHealthyBackend();
     renderDashboard();
-    await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
     expect(screen.getByText("14")).toBeInTheDocument();
-    expect(screen.getByText(/Ask a business question, or try one of these/)).toBeInTheDocument();
+    expect(screen.getByText(/How can I help with your business today/)).toBeInTheDocument();
   });
 
   it("renders initial messages loaded from the database instead of the empty state", async () => {
@@ -95,7 +95,7 @@ describe("DashboardClient — load", () => {
         { id: "m2", role: "assistant", content: "QAR 33,574.50", timestamp: "2026-01-01T00:00:01.000Z" },
       ],
     });
-    await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
     expect(screen.getByText("how much does Apple Mart owe?")).toBeInTheDocument();
     expect(screen.getByText("QAR 33,574.50")).toBeInTheDocument();
   });
@@ -105,7 +105,7 @@ describe("DashboardClient — chat submit", () => {
   it("exposes an accessible name for the send button and question input (Phase 9 audit fix)", async () => {
     setupHealthyBackend();
     renderDashboard();
-    await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
     expect(screen.getByLabelText("Send message")).toBeInTheDocument();
     expect(screen.getByLabelText("Ask a business question")).toBeInTheDocument();
   });
@@ -120,12 +120,12 @@ describe("DashboardClient — chat submit", () => {
     );
 
     renderDashboard();
-    await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
 
-    fireEvent.change(screen.getByPlaceholderText("Ask a business question..."), {
+    fireEvent.change(screen.getByLabelText("Ask a business question"), {
       target: { value: "show business alerts" },
     });
-    fireEvent.click(screen.getByText("↑"));
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     expect(await screen.findByText("Thinking…")).toBeInTheDocument();
 
@@ -144,12 +144,12 @@ describe("DashboardClient — chat submit", () => {
   it("blocks empty/whitespace-only submissions client-side", async () => {
     setupHealthyBackend();
     renderDashboard();
-    await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
 
-    fireEvent.change(screen.getByPlaceholderText("Ask a business question..."), {
+    fireEvent.change(screen.getByLabelText("Ask a business question"), {
       target: { value: "   " },
     });
-    fireEvent.click(screen.getByText("↑"));
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     expect(mockedChat).not.toHaveBeenCalled();
   });
@@ -164,11 +164,11 @@ describe("DashboardClient — chat submit", () => {
     );
 
     renderDashboard();
-    await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
 
-    const input = screen.getByPlaceholderText("Ask a business question...");
+    const input = screen.getByLabelText("Ask a business question");
     fireEvent.change(input, { target: { value: "show business alerts" } });
-    const sendButton = screen.getByText("↑");
+    const sendButton = screen.getByRole("button", { name: "Send message" });
     fireEvent.click(sendButton);
     // Second click while the first request is still pending.
     fireEvent.click(sendButton);
@@ -185,12 +185,12 @@ describe("DashboardClient — chat submit", () => {
     mockedChat.mockRejectedValue(new ApiError("Could not reach the API."));
 
     renderDashboard();
-    await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
 
-    fireEvent.change(screen.getByPlaceholderText("Ask a business question..."), {
+    fireEvent.change(screen.getByLabelText("Ask a business question"), {
       target: { value: "show business alerts" },
     });
-    fireEvent.click(screen.getByText("↑"));
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Could not reach the API.");
@@ -206,12 +206,12 @@ describe("DashboardClient — chat submit", () => {
     });
 
     renderDashboard();
-    await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
 
-    fireEvent.change(screen.getByPlaceholderText("Ask a business question..."), {
+    fireEvent.change(screen.getByLabelText("Ask a business question"), {
       target: { value: "show business alerts" },
     });
-    fireEvent.click(screen.getByText("↑"));
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/something went wrong/i);
@@ -233,12 +233,12 @@ describe("DashboardClient — chat submit", () => {
     });
 
     renderDashboard();
-    await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
 
-    fireEvent.change(screen.getByPlaceholderText("Ask a business question..."), {
+    fireEvent.change(screen.getByLabelText("Ask a business question"), {
       target: { value: "show business alerts" },
     });
-    fireEvent.click(screen.getByText("↑"));
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     await waitFor(() => expect(mockedAppendMessage).toHaveBeenCalledTimes(2));
     expect(mockedAppendMessage).toHaveBeenCalledWith(conv1.id, "user", "show business alerts");
@@ -250,12 +250,12 @@ describe("DashboardClient — chat submit", () => {
     mockedChat.mockRejectedValue(new ApiError("Could not reach the API."));
 
     renderDashboard();
-    await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
 
-    fireEvent.change(screen.getByPlaceholderText("Ask a business question..."), {
+    fireEvent.change(screen.getByLabelText("Ask a business question"), {
       target: { value: "show business alerts" },
     });
-    fireEvent.click(screen.getByText("↑"));
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
     await screen.findByRole("alert");
     expect(mockedAppendMessage).not.toHaveBeenCalled();
@@ -273,16 +273,16 @@ describe("DashboardClient — conversation switching", () => {
         { id: "m1", role: "user", content: "how much does Apple Mart owe?", timestamp: "2026-01-01T00:00:00.000Z" },
       ],
     });
-    await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
     expect(screen.getByText("how much does Apple Mart owe?")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "+ New Chat" }));
+    fireEvent.click(screen.getByRole("button", { name: "New conversation" }));
 
     await waitFor(() => expect(mockedCreateConversation).toHaveBeenCalledTimes(1));
     await waitFor(() =>
       expect(screen.queryByText("how much does Apple Mart owe?")).not.toBeInTheDocument()
     );
-    expect(screen.getByText(/Ask a business question, or try one of these/)).toBeInTheDocument();
+    expect(screen.getByText(/How can I help with your business today/)).toBeInTheDocument();
   });
 
   it("loads the selected conversation's messages when switching", async () => {
@@ -295,7 +295,7 @@ describe("DashboardClient — conversation switching", () => {
     });
 
     renderDashboard({ initialConversations: [conv1, conv2] });
-    await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
 
     fireEvent.click(screen.getByText(conv2.title));
 
@@ -308,7 +308,7 @@ describe("DashboardClient — conversation switching", () => {
     mockedRenameConversation.mockResolvedValue(undefined);
 
     renderDashboard();
-    await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
 
     fireEvent.click(screen.getByLabelText(`Rename ${conv1.title}`));
     const input = screen.getByDisplayValue(conv1.title);
@@ -318,7 +318,11 @@ describe("DashboardClient — conversation switching", () => {
     await waitFor(() =>
       expect(mockedRenameConversation).toHaveBeenCalledWith(conv1.id, "Renamed chat")
     );
-    expect(await screen.findByText("Renamed chat")).toBeInTheDocument();
+    // The renamed title now also appears in the workspace header, so target
+    // the conversation-select button specifically rather than raw text.
+    expect(
+      await screen.findByRole("button", { name: "Renamed chat" })
+    ).toBeInTheDocument();
   });
 
   it("deletes a conversation and creates a fresh one when the last conversation is removed", async () => {
@@ -329,7 +333,7 @@ describe("DashboardClient — conversation switching", () => {
 
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     renderDashboard();
-    await waitFor(() => expect(screen.getByText("API Connected")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("Demo data")).toBeInTheDocument());
 
     fireEvent.click(screen.getByLabelText(`Delete ${conv1.title}`));
 

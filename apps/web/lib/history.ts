@@ -18,8 +18,11 @@ export interface ChatTurn {
   role: Role;
   content: string;
   tool?: string | null;
-  /** True for a failed request/response — lets ResponseCard style it distinctly. */
+  /** True for a failed request/response — lets the renderer style it distinctly. */
   isError?: boolean;
+  /** The question that produced a failed turn, so the error message can offer
+   * a one-click retry without the user retyping. Set only on error turns. */
+  retryQuery?: string;
   /** Stable React key — either the persisted message id (reloaded turns)
    * or a client-generated id (freshly-sent turns). Optional only so
    * existing call sites/tests that don't care about list identity aren't

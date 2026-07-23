@@ -1,22 +1,193 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
-/* Dark palette — matches the existing Streamlit prototype's theme
-   (assets/streamlit_theme.css / .streamlit/config.toml) for visual
-   consistency between both front ends. Tailwind v4 CSS-first config:
-   these generate bg-surface, text-ink, border-line, etc. utility classes. */
+/* ────────────────────────────────────────────────────────────────────────
+   Design tokens — the single source of truth for the whole workspace UI
+   (AG5A). Dark is the shipped default; every value is a named token so a
+   future light theme is a variable swap, not a component rewrite. The
+   emerald accent is spent deliberately — primary action, active state, and
+   positive status only — so the rest of the surface stays calm charcoal.
+   Tailwind v4 CSS-first config: these generate bg-surface, text-ink,
+   border-line, ring-focus, etc.
+   ──────────────────────────────────────────────────────────────────────── */
 @theme {
+  /* Surfaces — base → elevated → interactive, plus a distinct sidebar panel */
   --color-surface: #101415;
-  --color-surface-2: #1d2022;
-  --color-accent: #4edea3;
-  --color-ink: #e0e3e5;
-  --color-ink-dim: #9aa0a3;
+  --color-panel: #0c1011;
+  --color-surface-2: #191d1f;
+  --color-surface-3: #23282a;
+
+  /* Lines & separators */
   --color-line: #2a2e30;
-  --color-danger: #ef5b5b;
+  --color-line-strong: #363c3e;
+
+  /* Text — primary → secondary → faint (captions/timestamps) */
+  --color-ink: #e6e9ea;
+  --color-ink-dim: #9aa0a3;
+  /* ~4.8:1 on --color-surface — dim enough for captions, still WCAG AA. */
+  --color-ink-faint: #7c8285;
+
+  /* Accent (emerald) + the dark ink that sits on top of it */
+  --color-accent: #4edea3;
+  --color-accent-strong: #6bead4;
+  --color-accent-soft: #16241f;
+  --color-on-accent: #052018;
+
+  /* Semantic — success reuses the accent green intentionally */
+  --color-success: #4edea3;
   --color-warn: #e2a33d;
+  --color-danger: #ef5b5b;
+
+  --color-focus: #4edea3;
+
+  /* Radii */
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
+html {
+  color-scheme: dark;
 }
 
 body {
   background: var(--color-surface);
   color: var(--color-ink);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, sans-serif;
+}
+
+/* Numeric values (currency, KPIs, table figures) line up in columns and read
+   as data — the BI personality — without pulling in a second typeface. */
+table,
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* One consistent, visible keyboard focus treatment everywhere. Pointer
+   clicks don't get the ring (:focus-visible), keyboard navigation does. */
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Restrained scrollbars for the two intentional scroll regions (sidebar
+   history, message list) — thin, neutral, out of the way. */
+.scroll-region {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
+}
+.scroll-region::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.scroll-region::-webkit-scrollbar-thumb {
+  background: var(--color-line-strong);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.scroll-region::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ink-faint);
+  background-clip: content-box;
+}
+
+/* Assistant markdown — tuned to the tokens so reports read like a document,
+   not a wall inside a box. Tables scroll inside their own container
+   (.md-table-scroll) so a wide report never pushes the page sideways. */
+.message-prose {
+  color: var(--color-ink);
+  font-size: 0.925rem;
+  line-height: 1.65;
+  overflow-wrap: break-word;
+}
+.message-prose pre {
+  overflow-x: auto;
+  background: var(--color-surface-3);
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-lg);
+  margin: 0.7em 0;
+}
+.message-prose pre code {
+  background: transparent;
+  padding: 0;
+}
+.message-prose :where(h1, h2, h3, h4) {
+  color: var(--color-ink);
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 1.1em 0 0.5em;
+}
+.message-prose :where(h1):first-child,
+.message-prose :where(h2):first-child,
+.message-prose :where(h3):first-child {
+  margin-top: 0;
+}
+.message-prose h1 { font-size: 1.2rem; }
+.message-prose h2 { font-size: 1.08rem; }
+.message-prose h3 { font-size: 0.98rem; }
+.message-prose p { margin: 0.6em 0; }
+.message-prose :where(ul, ol) { margin: 0.6em 0; padding-inline-start: 1.4em; }
+.message-prose li { margin: 0.2em 0; }
+.message-prose li::marker { color: var(--color-ink-faint); }
+.message-prose strong { color: var(--color-ink); font-weight: 600; }
+.message-prose a { color: var(--color-accent); text-underline-offset: 2px; }
+.message-prose code {
+  font-size: 0.85em;
+  background: var(--color-surface-3);
+  padding: 0.1em 0.35em;
+  border-radius: 5px;
+}
+.message-prose hr { border-color: var(--color-line); margin: 1em 0; }
+.message-prose blockquote {
+  border-inline-start: 3px solid var(--color-line-strong);
+  padding-inline-start: 0.9em;
+  color: var(--color-ink-dim);
+  margin: 0.7em 0;
+}
+.message-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.message-prose th,
+.message-prose td {
+  text-align: start;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-line);
+  white-space: nowrap;
+}
+.message-prose thead th {
+  color: var(--color-ink-dim);
+  font-weight: 600;
+  border-bottom-color: var(--color-line-strong);
+}
+.message-prose tbody tr:hover td {
+  background: color-mix(in srgb, var(--color-surface-3) 45%, transparent);
+}
+
+/* Mobile drawer entrance — slide the panel in from the inline-start, fade
+   the backdrop. Reduced-motion (below) zeroes both to an instant appearance. */
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes drawer-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+.animate-overlay-in { animation: overlay-in 0.15s ease-out; }
+.animate-drawer-in { animation: drawer-in 0.2s ease-out; }
+
+/* Reduced-motion: a hard safety net over every transition/animation the
+   components add, on top of their own motion-reduce: variants. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
